@@ -1,7 +1,7 @@
 import React from "react";
 
-const Type = () => {
-  return <p> כאן יוצגו האבחונים השונים הקיימים</p>;
+const ContactUs = () => {
+  return <p> כאן אהיה אופציה ליצירת קש</p>;
 };
 
-export default Type;
+export default ContactUs;

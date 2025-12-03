@@ -1,7 +1,7 @@
 import React from "react";
 
-const Type = () => {
-  return <p> כאן יוצגו האבחונים השונים הקיימים</p>;
+const Checks = () => {
+  return <p> כאן יוצגו הדוחות</p>;
 };
 
-export default Type;
+export default Checks;
