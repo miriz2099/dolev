@@ -1,35 +1,46 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// src/App.jsx
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Layout from "./layout/layout";
+
+import Home from "./pages/Home";
+import ContactUs from "./pages/ContactUs";
+import Patients from "./pages/Patients";
+import Pay from "./pages/Pay";
+import Type from "./pages/Type";
+
+import Diary from "./pages/Diary";
+import Checks from "./pages/Checks";
+import Diagnos from "./pages/Diagnos";
+import Isur from "./pages/Isur";
+import Lids from "./pages/Lids";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <BrowserRouter>
+      <Routes>
+        {/* ה-Layout עוטף את כל הנתיבים שבתוכו */}
+        <Route path="/" element={<Layout />}>
+          {/* --- נתיבים לכולם (Guest) --- */}
+          <Route path="home" element={<Home />} /> {/* הכתובת הריקה / */}
+          <Route path="type" element={<Type />} />
+          <Route path="contact-us" element={<ContactUs />} />
+          {/* --- נתיבים למטופל (Patient) --- */}
+          <Route path="pay" element={<Pay />} />
+          <Route path="diary" element={<Diary />} />
+          <Route path="checks" element={<Checks />} />
+          <Route path="isur" element={<Isur />} />
+          <Route path="lids" element={<Lids />} />
+          {/* --- נתיבים לפסיכולוג (Psychologist) --- */}
+          <Route path="patients" element={<Patients />} />
+          <Route path="diagnos" element={<Diagnos />} />
+          {/* <Route path="diary" element={<Diary />} />
+          <Route path="checks" element={<Checks />} /> */}
+          {/* <Route path="patients" element={<PatientManager />} /> */}
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
