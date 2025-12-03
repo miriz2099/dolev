@@ -1,7 +1,7 @@
 import React from "react";
 
-const Type = () => {
-  return <p> כאן יוצגו האבחונים השונים הקיימים</p>;
+const Diary = () => {
+  return <p> כאן יהיה היומן</p>;
 };
 
-export default Type;
+export default Diary;
