@@ -1,7 +1,7 @@
 import React from "react";
 
-const Type = () => {
-  return <p> כאן יוצגו האבחונים השונים הקיימים</p>;
+const Isur = () => {
+  return <p> כאן יהיה האישורים</p>;
 };
 
-export default Type;
+export default Isur;
