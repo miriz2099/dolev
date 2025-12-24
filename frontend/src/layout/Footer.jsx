@@ -5,7 +5,6 @@ export default function Footer() {
       <style>{`
         .footer {
           text-align: center;
-          padding: 10px;
           background-color: #ff9a3c; /* כתום הלוגו */
           color: white;
         }
