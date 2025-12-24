@@ -79,21 +79,22 @@ const Slider = ({ userRole = "guest" }) => {
           display: block;
           padding: 10px 20px;
           text-decoration: none;
-          color: #333;
+          color: #fefefeff;
           font-size: 16px;
           transition: 0.3s;
-           background-color: #cad5f4ff;
+          border-radius: 4px;
+
         }
 
         a:hover {
-          background-color: #f0f4ff;
-          color: #2b6df6;
+          background-color: #5387efff;
+          color: #fefefeff;
         }
 
         /* עיצוב לקישור הפעיל (הדף שבו אני נמצא כרגע) */
         .active-link {
-          background-color: #e6efff;
-          color: #2b6df6;
+          background-color: #5387efff;
+          color: #fefefeff;
           font-weight: bold;
           border-right: 4px solid #2b6df6; /* פס כחול קטן בצד שמראה איפה אני */
         }
