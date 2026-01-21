@@ -8,7 +8,7 @@ import { NavLink } from "react-router-dom";
 const MENU_ITEMS = {
   guest: [
     // משתמש לא מחובר
-    { label: "דף הבית", path: "/home" },
+    { label: "דף הבית", path: "/" },
     { label: "סוגי אבחונים", path: "/type" },
     { label: "צור קשר", path: "/contact-us" },
     // { label: "הרשמה / התחברות" },
