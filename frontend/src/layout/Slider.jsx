@@ -15,6 +15,7 @@ const MENU_ITEMS = {
   ],
   patient: [
     // מטופל מחובר
+    { label: "דף הבית", path: "/" },
     { label: "אבחונים", path: "/diagnos" },
     { label: "אישורים", path: "/isur" },
     { label: "דוחות", path: "/checks" },
@@ -22,7 +23,7 @@ const MENU_ITEMS = {
     { label: "היומן שלי", path: "/diary" },
     { label: "תשלומים", path: "/pay" },
   ],
-  psychologist: [
+  therapist: [
     // פסיכולוג מחובר
 
     { label: "ניהול מטופלים", path: "/patients" },

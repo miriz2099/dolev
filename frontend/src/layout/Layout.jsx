@@ -1,25 +1,32 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
+import { useAuth } from "../contexs/AuthContext.jsx"; // <--- ייבוא ההוק שלנו
 import Header from "./Header";
 import Slider from "./Slider";
 import Footer from "./Footer";
 
-const currentUser = {
-  name: "ישראל ישראלי",
-  role: "guest",
-  // role: "patient",
-  // role: "psychologist",
-};
-
 const Layout = () => {
+  const { userProfile, loading } = useAuth();
+
+  // 2. הגנה מפני קריסה בזמן טעינה ראשונית
+  // (אופציונלי: אפשר להציג ספינר, או פשוט לתת לו להמשיך כאורח)
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", marginTop: "50px" }}>טוען...</div>
+    );
+  }
+
+  // 3. לוגיקה חכמה: אם יש פרופיל - קח את התפקיד שלו. אם אין - הוא אורח.
+  const currentRole = userProfile ? userProfile.role : "guest";
+  const currentName = userProfile ? userProfile.firstName : "אורח";
   return (
     <div className="app-container">
       {/* 1. הסיידבר נמצא בחוץ, הוא הילד הראשון ולכן יהיה הכי ימני */}
-      <Slider userRole={currentUser.role} />
+      <Slider userRole={currentRole} />
 
       {/* 2. עטיפה לכל הצד השמאלי (הדר, תוכן, פוטר) */}
       <div className="left-side-wrapper">
-        <Header />
+        <Header userName={currentName} />
 
         <main className="main-content">
           <div className="content-scrol">
