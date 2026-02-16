@@ -60,6 +60,8 @@ import Checks from "./pages/Checks";
 import Diagnos from "./pages/Diagnos";
 import Isur from "./pages/Isur";
 import Lids from "./pages/Lids";
+import ApproveUsers from "./pages/ApproveUsers";
+import StaffManagement from "./pages/StaffManagement";
 
 // Auth Pages (New!) - אנא צרי את הקבצים האלו אם הם לא קיימים
 import Login from "./pages/Login";
@@ -93,6 +95,10 @@ function App() {
           {/* Therapist Area */}
           <Route path="patients" element={<Patients />} />
           <Route path="diagnos" element={<Diagnos />} />
+
+          {/* Admin Area */}
+          <Route path="approve-users" element={<ApproveUsers />} />
+          <Route path="staff" element={<StaffManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>

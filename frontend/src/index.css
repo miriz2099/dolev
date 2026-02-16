@@ -1,7 +1,6 @@
-/* src/index.css */
+/* src/index.css
 :root {
   direction: rtl;
-  /* מגדיר את כל האתר מימין לשמאל */
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
@@ -11,7 +10,6 @@ body {
   width: 100%;
   min-height: 100vh;
   background-color: #f8f9fa;
-  /* צבע רקע כללי נעים */
 }
 
 #root {
@@ -20,9 +18,32 @@ body {
   display: flex;
   flex-direction: column;
   margin: 0 auto;
-  /* ביטול מרכוז מיותר */
   padding: 0;
-  /* ביטול ריווח פנימי מיותר */
   max-width: none;
-  /* ביטול הגבלת רוחב - הכי חשוב! */
+} */
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  direction: rtl;
+  /* בגלל שאנחנו בונים מערכת בעברית */
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: #f8f9fa;
+  /* אפור בהיר מאוד שראינו בהשראות */
+}
+
+/* הסתרת גלגלת עבור דפדפני Chrome, Safari ו-Edge */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* הסתרת גלגלת עבור Firefox ו-IE */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
