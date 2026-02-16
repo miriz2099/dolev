@@ -14,6 +14,8 @@ const Register = () => {
     password: "",
     phone: "",
     role: "client", // ברירת מחדל: הורה/לקוח
+    status: "pending", // סטטוס ראשוני - מחכה לאישור
+    createdAt: new Date(),
   });
 
   const [error, setError] = useState("");

@@ -32,6 +32,17 @@ const MENU_ITEMS = {
     { label: "אבחונים", path: "/diagnos" },
     { label: "דוחות", path: "/checks" },
   ],
+  admin: [
+    { label: "ניהול מטופלים", path: "/patients" },
+    { label: "פניות", path: "/lids" },
+    { label: "לוח שנה", path: "/diary" },
+    { label: "אבחונים", path: "/diagnos" },
+    { label: "דוחות", path: "/checks" },
+    // --- פיצ'רים בלעדיים למנהל ---
+    { label: "אישור משתמשים חדשים", path: "/approve-users" },
+    { label: "ניהול צוות מאבחנים", path: "/staff" },
+    // { label: "הגדרות מערכת", path: "/admin/settings" },
+  ],
 };
 
 const Slider = ({ userRole = "guest" }) => {

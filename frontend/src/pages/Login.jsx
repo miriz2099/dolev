@@ -23,10 +23,25 @@ const Login = () => {
       console.log("Logged in user:", userProfile);
 
       // 2. ניווט לפי התפקיד של המשתמש (לוגיקה חכמה)
-      if (userProfile.role === "admin" || userProfile.role === "therapist") {
-        navigate("/patients"); // פסיכולוג הולך לרשימת מטופלים
+      // if (userProfile.role === "admin" || userProfile.role === "therapist") {
+      //   navigate("/patients"); // פסיכולוג הולך לרשימת מטופלים
+      // } else {
+      //   navigate("/"); // הורה הולך לדף הבית
+      // }
+      // בתוך try אחרי קבלת userProfile
+      if (userProfile.status === "pending") {
+        setError("חשבונך ממתין לאישור מנהל. הודעה תישלח בסיום התהליך.");
+        setLoading(false);
+        return;
+      }
+
+      // ניווט חכם
+      if (userProfile.role === "admin") {
+        navigate("/patients"); // דף ניהול ייעודי
+      } else if (userProfile.role === "therapist") {
+        navigate("/patients");
       } else {
-        navigate("/"); // הורה הולך לדף הבית
+        navigate("/my-reports");
       }
     } catch (err) {
       console.error(err);
@@ -91,9 +106,9 @@ const Login = () => {
         </button>
       </form>
 
-      <p style={{ marginTop: "20px" }}>
+      {/* <p style={{ marginTop: "20px" }}>
         אין לך חשבון? <a href="/register">הירשם כאן</a>
-      </p>
+      </p> */}
     </div>
   );
 };
