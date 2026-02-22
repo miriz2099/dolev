@@ -11,12 +11,13 @@ exports.createStaff = async (req, res) => {
     });
 
     await db.collection("users").doc(userRecord.uid).set({
+      uid: userRecord.uid,
       firstName,
       lastName,
       email,
       phone,
       role,
-      status: "approved",
+      // status: "approved",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
