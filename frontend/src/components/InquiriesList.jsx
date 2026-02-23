@@ -169,6 +169,7 @@ import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 
+const API_URL = import.meta.env.VITE_API_URL;
 const InquiriesList = () => {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -209,7 +210,7 @@ const InquiriesList = () => {
       const token = await user.getIdToken();
 
       const response = await fetch(
-        `http://localhost:5000/api/inquiries/${id}/status`,
+        `${API_URL}/inquiries/${id}/status`,
         {
           method: "PATCH",
           headers: {

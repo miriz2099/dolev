@@ -3,6 +3,8 @@ import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const AddChildModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
     firstName: "",
@@ -66,7 +68,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
       const token = await auth.currentUser.getIdToken();
 
       const response = await fetch(
-        "http://localhost:5000/api/children/create",
+        `${API_URL}/children/create`,
         {
           method: "POST",
           headers: {
