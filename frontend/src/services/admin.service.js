@@ -1,7 +1,9 @@
 // frontend/src/services/admin.service.js
 import { auth } from "../firebase";
 
-const API_URL = "http://localhost:5000/api/admin";
+
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const createStaffMember = async (staffData) => {
   try {
@@ -12,7 +14,7 @@ export const createStaffMember = async (staffData) => {
     const token = await user.getIdToken();
 
     // 2. שליחת הבקשה עם ה-Token ב-Headers
-    const response = await fetch(`${API_URL}/create-staff`, {
+    const response = await fetch(`${API_URL}/admin/create-staff`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
