@@ -36,5 +36,60 @@ const createParentUser = async (req, res) => {
     res.status(500).json({ error: error.message || "Failed to create user" });
   }
 };
+const getUserProfile = async (req, res) => {
+  try {
+    // ה-uid מגיע מהמידלוור verifyToken
+    const uid = req.user.uid;
 
-module.exports = { createParentUser };
+    // שליפת המסמך מה-Collection של users
+    const userDoc = await db.collection("users").doc(uid).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "User document not found" });
+    }
+
+    const userData = userDoc.data();
+
+    // מחזירים את הנתונים לצד הלקוח
+    res.status(200).json({
+      firstName: userData.firstName || "",
+      lastName: userData.lastName || "",
+      phone: userData.phone || "",
+      email: userData.email || req.user.email, // עדיפות למייל מהדאטהבייס
+      role: userData.role || "patient",
+    });
+  } catch (error) {
+    console.error("Error in getUserProfile:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const updateUserProfile = async (req, res) => {
+  try {
+    // ה-uid מגיע מהמידלוור verifyToken - זה מבטיח שרק בעל החשבון מעדכן את עצמו!
+    const uid = req.user.uid;
+    const { firstName, lastName, phone } = req.body;
+
+    // 1. עדכון ב-Firestore
+    const userRef = db.collection("users").doc(uid);
+
+    await userRef.update({
+      firstName,
+      lastName,
+      phone,
+      updatedAt: new Date().toISOString(),
+    });
+
+    // 2. אופציונלי: עדכון ה-DisplayName גם ב-Firebase Auth (כדי שיהיה מסונכרן)
+    // await auth.updateUser(uid, {
+    //   displayName: `${firstName} ${lastName}`,
+    // });
+
+    res.status(200).json({ message: "Profile updated successfully" });
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+};
+
+module.exports = { createParentUser, getUserProfile, updateUserProfile };
