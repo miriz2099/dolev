@@ -50,8 +50,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const value = {
-    user,
-    userProfile,
+    currentUser: user, // שינינו מ-user ל-currentUser
+    userRole: userProfile?.role, // חילוץ ישיר של ה-role
+    userProfile, // כל שאר המידע (שם, טלפון וכו')
     loading,
   };
 
