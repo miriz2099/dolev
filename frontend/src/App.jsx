@@ -67,6 +67,7 @@ import ChildDetails from "./pages/ChildDetails";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import UserProfile from "./pages/UserProfile";
 
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext"; // וודאי שהקשר קיים
@@ -94,34 +95,28 @@ function App() {
         <Route path="/" element={<Layout />}>
           {/* הופך את דף האינדקס לרכיב הניתוב החכם */}
           <Route index element={<HomeRedirect />} />
-
           {/* שאר הנתיבים נשארים כפי שהם */}
           <Route path="home" element={<Home />} />
-
           {/* Public Routes - פתוחים לכולם */}
           <Route path="type" element={<Type />} />
           <Route path="contact-us" element={<ContactUs />} />
-
           {/* Auth Routes - התחברות והרשמה */}
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
-
+          <Route path="profile" element={<UserProfile />} />
           {/* --- נתיבים שבהמשך נגן עליהם (Private) --- */}
 
           {/* Patient Area */}
           <Route path="/child-details/:childId" element={<ChildDetails />} />
-
           <Route path="pay" element={<Pay />} />
           <Route path="all-children" element={<AllChildren />} />
           <Route path="diary" element={<Diary />} />
           <Route path="checks" element={<Checks />} />
           <Route path="isur" element={<Isur />} />
           <Route path="lids" element={<Lids />} />
-
           {/* Therapist Area */}
           <Route path="patients" element={<Patients />} />
           <Route path="diagnos" element={<Diagnos />} />
-
           {/* Admin Area */}
           <Route path="approve-users" element={<ApproveUsers />} />
           <Route path="staff" element={<StaffManagement />} />
