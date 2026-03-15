@@ -1,7 +1,7 @@
 // export default Layout;
 import React from "react";
 import { Outlet } from "react-router-dom";
-import { useAuth } from "../contexs/AuthContext.jsx";
+import { useAuth } from "../contexts/AuthContext.jsx";
 import Header from "./Header";
 import Slider from "./Slider";
 import Footer from "./Footer";

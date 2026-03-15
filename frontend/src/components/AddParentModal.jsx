@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { getAuth } from "firebase/auth";
-const API_URL = import.meta.env.VITE_API_URL;
 
+const API_URL = import.meta.env.VITE_API_URL;
 
 const AddParentModal = ({ isOpen, onClose }) => {
   // 1. הגדרת ה-State חייבת להיות ממש כאן, בתחילת הקומפוננטה
@@ -34,17 +34,14 @@ const AddParentModal = ({ isOpen, onClose }) => {
 
       const token = await user.getIdToken();
 
-      const response = await fetch(
-        `${API_URL}/users/create-parent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData),
+      const response = await fetch(`${API_URL}/users/create-parent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify(formData),
+      });
 
       if (response.ok) {
         alert("הורה נוצר בהצלחה במערכת!");

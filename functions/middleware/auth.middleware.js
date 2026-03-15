@@ -34,10 +34,28 @@
 
 // module.exports = { verifyAdmin };
 
-
 const firebaseApp = require("../config/firebase");
 const auth = firebaseApp.auth;
 const db = firebaseApp.db;
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decodedToken = await auth.verifyIdToken(token);
+    req.user = decodedToken; // שומרים את פרטי המשתמש (כולל uid) להמשך
+    next();
+  } catch (error) {
+    console.error("Token Verification Error:", error.message);
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
 
 const verifyAdmin = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -70,4 +88,4 @@ const verifyAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { verifyAdmin };
+module.exports = { verifyAdmin, verifyToken };
