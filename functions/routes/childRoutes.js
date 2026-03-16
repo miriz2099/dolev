@@ -12,8 +12,11 @@ const {
 // 2. ייבוא שני המידלוורים (הוספתי את verifyToken)
 const { verifyAdmin, verifyToken } = require("../middleware/auth.middleware");
 // נתיב ליצירת ילד - רק אדמין מורשה
+// 1. קודם כל הנתיבים הסטטיים (הקבועים)
 router.post("/create", verifyAdmin, createChild);
-router.get("/my-children", verifyToken, getParentChildren);
+router.get("/myChildren", verifyToken, getParentChildren); // תמיד מעל הנתיב עם הנקודתיים!
+
+// 2. רק בסוף הנתיבים הדינמיים (עם הפרמטרים)
 router.get("/:childId", verifyToken, getChildById);
 
 module.exports = router;

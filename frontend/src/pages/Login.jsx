@@ -29,15 +29,6 @@ const Login = () => {
       }
 
       navigate("/", { replace: true });
-
-      // ניווט חכם
-      // if (userProfile.role === "admin") {
-      //   navigate("/patients"); // דף ניהול ייעודי
-      // } else if (userProfile.role === "therapist") {
-      //   navigate("/patients");
-      // } else {
-      //   navigate("/diagnos");
-      // }
     } catch (err) {
       console.error(err);
       // טיפול בשגיאות נפוצות

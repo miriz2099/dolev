@@ -1,8 +1,6 @@
 // frontend/src/services/admin.service.js
 import { auth } from "../firebase";
 
-
-
 const API_URL = import.meta.env.VITE_API_URL;
 
 export const createStaffMember = async (staffData) => {
@@ -38,7 +36,7 @@ export const createStaffMember = async (staffData) => {
 // מחיקה
 export const deleteStaffMember = async (userId) => {
   const token = await auth.currentUser.getIdToken();
-  const response = await fetch(`${API_URL}/delete-staff/${userId}`, {
+  const response = await fetch(`${API_URL}/admin/delete-staff/${userId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
