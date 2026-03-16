@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 const InputField = ({ label, value, onChange, type = "text", className = "", wide = false }) => (
   <div className={`flex flex-col gap-1 ${wide ? "col-span-2" : ""} ${className}`}>
@@ -58,6 +58,14 @@ const STEPS = [
 const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
   const [step, setStep] = useState(1);
   const [saveStatus, setSaveStatus] = useState("");
+  const containerRef = useRef(null);
+
+  const scrollToTop = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const [formData, setFormData] = useState({
     date: new Date().toLocaleDateString("he-IL"),
@@ -78,9 +86,9 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
     firstFrameworkAge: "", firstFrameworkType: "",
     prePreSchoolReports: "", preSchoolReports: "",
     schoolHistory: [
-      { grade: "", school: "", city: "" },
-      { grade: "", school: "", city: "" },
-      { grade: "", school: "", city: "" },
+      { grade: "א-ג", school: "", city: "" },
+      { grade: "ד-ו", school: "", city: "" },
+      { grade: "ז-ט", school: "", city: "" },
     ],
     stayedGrade: "", stayedGradeWhich: "", stayedGradeReason: "",
 
@@ -504,7 +512,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
   const totalSteps = STEPS.length;
 
   return (
-    <div className="bg-white max-w-5xl mx-auto rounded-2xl shadow-lg p-8" dir="rtl">
+    <div ref={containerRef} className="bg-white max-w-5xl mx-auto rounded-2xl shadow-lg p-8" dir="rtl">
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <div>
@@ -538,7 +546,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
       {/* Navigation - bottom only */}
       <div className="flex justify-between mt-10">
         <button
-          onClick={step === 1 ? onCancel : () => setStep(step - 1)}
+          onClick={() => { if (step === 1) { onCancel && onCancel(); } else { setStep(step - 1); scrollToTop(); } }}
           className="text-gray-500 hover:text-gray-800 transition px-4 py-2 rounded border border-gray-300 hover:border-gray-500"
         >
           {step === 1 ? "ביטול" : "→ הקודם"}
@@ -546,7 +554,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
 
         {step < totalSteps ? (
           <button
-            onClick={() => setStep(step + 1)}
+            onClick={() => { setStep(step + 1); scrollToTop(); }}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
             המשך ←
