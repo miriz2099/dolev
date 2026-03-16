@@ -80,11 +80,6 @@ const updateUserProfile = async (req, res) => {
       updatedAt: new Date().toISOString(),
     });
 
-    // 2. אופציונלי: עדכון ה-DisplayName גם ב-Firebase Auth (כדי שיהיה מסונכרן)
-    // await auth.updateUser(uid, {
-    //   displayName: `${firstName} ${lastName}`,
-    // });
-
     res.status(200).json({ message: "Profile updated successfully" });
   } catch (error) {
     console.error("Error updating profile:", error);
