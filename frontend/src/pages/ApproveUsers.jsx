@@ -1,15 +1,7 @@
 // export default ApproveUsers;
 import React, { useState, useEffect } from "react";
 import { db } from "../firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-  deleteDoc,
-} from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import InquiriesList from "../components/InquiriesList";
 import AddParentModal from "../components/AddParentModal";
 import AddChildModal from "../components/AddChildModal"; // 1. ייבוא המודאל החדש

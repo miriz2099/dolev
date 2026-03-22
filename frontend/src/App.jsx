@@ -59,11 +59,12 @@ import Diary from "./pages/Diary";
 import Checks from "./pages/Checks";
 import Diagnos from "./pages/Diagnos";
 import Isur from "./pages/Isur";
-import Lids from "./pages/Lids";
+import TherapistInbox from "./pages/TherapistInbox";
 import ApproveUsers from "./pages/ApproveUsers";
 import StaffManagement from "./pages/StaffManagement";
 import AllChildren from "./pages/AllParentChildren";
 import ChildDetails from "./pages/ChildDetails";
+import DiagnosisDetails from "./pages/DiagnosisDetails";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -113,10 +114,14 @@ function App() {
           <Route path="diary" element={<Diary />} />
           <Route path="checks" element={<Checks />} />
           <Route path="isur" element={<Isur />} />
-          <Route path="lids" element={<Lids />} />
+          <Route path="therapist/inbox" element={<TherapistInbox />} />
           {/* Therapist Area */}
           <Route path="patients" element={<Patients />} />
           <Route path="diagnos" element={<Diagnos />} />
+          <Route
+            path="therapist/child/:childId"
+            element={<DiagnosisDetails />}
+          />
           {/* Admin Area */}
           <Route path="approve-users" element={<ApproveUsers />} />
           <Route path="staff" element={<StaffManagement />} />

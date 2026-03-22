@@ -19,6 +19,7 @@ const createChild = async (req, res) => {
       birthDate,
       parentId, // ה-UID של ההורה מה-Dropdown
       therapistId, // ה-UID של המטפל מה-Dropdown
+      canFillQuestionnaire: false,
       createdAt: new Date().toISOString(),
     };
 
@@ -59,7 +60,7 @@ const getParentChildren = async (req, res) => {
 const getChildById = async (req, res) => {
   try {
     const { childId } = req.params;
-    const parentIdFromToken = req.user.uid;
+    const IdFromToken = req.user.uid;
 
     // 1. שליפת מסמך הילד
     const childDoc = await db.collection("children").doc(childId).get();
@@ -71,7 +72,10 @@ const getChildById = async (req, res) => {
     const childData = childDoc.data();
 
     // 2. בדיקת אבטחה: האם זה ההורה של הילד?
-    if (childData.parentId !== parentIdFromToken) {
+    if (
+      childData.parentId !== IdFromToken &&
+      childData.therapistId !== IdFromToken
+    ) {
       return res.status(403).json({ error: "אין הרשאה לצפות במידע זה" });
     }
 
@@ -100,4 +104,66 @@ const getChildById = async (req, res) => {
     res.status(500).json({ error: "שגיאת שרת פנימית" });
   }
 };
-module.exports = { createChild, getParentChildren, getChildById };
+
+const getTherapistPatients = async (req, res) => {
+  try {
+    // ה-UID מגיע מה-Middleware (verifyToken)
+    const therapistId = req.user.uid;
+
+    const patientsSnapshot = await db
+      .collection("children")
+      .where("therapistId", "==", therapistId)
+      .get();
+
+    const patients = [];
+    patientsSnapshot.forEach((doc) => {
+      patients.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.status(200).json(patients);
+  } catch (error) {
+    console.error("Error fetching therapist patients:", error);
+    res.status(500).json({ error: "Failed to fetch patients" });
+  }
+};
+
+// שליפת פרטי הורה עבור מאבחן
+const getParentDetails = async (req, res) => {
+  try {
+    const { parentId } = req.params;
+
+    // שליפת מסמך המשתמש (ההורה) מ-Collection users
+    const parentDoc = await db.collection("users").doc(parentId).get();
+
+    if (!parentDoc.exists) {
+      return res.status(404).json({ error: "הורה לא נמצא" });
+    }
+
+    const userData = parentDoc.data();
+
+    // מחזירים רק פרטים רלוונטיים (ללא סיסמאות או מידע רגיש מיותר)
+    res.status(200).json({
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      email: userData.email,
+      phone: userData.phone || "לא הוזן טלפון",
+    });
+  } catch (error) {
+    console.error("Error fetching parent details:", error);
+    res.status(500).json({ error: "שגיאה בשליפת פרטי הורה" });
+  }
+};
+
+// עדכון הייצוא בסוף הקובץ
+module.exports = {
+  // ... שאר הפונקציות
+  getParentDetails,
+};
+
+module.exports = {
+  createChild,
+  getParentChildren,
+  getChildById,
+  getTherapistPatients,
+  getParentDetails,
+};

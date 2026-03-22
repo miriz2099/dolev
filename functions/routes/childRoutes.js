@@ -7,16 +7,18 @@ const {
   createChild,
   getParentChildren,
   getChildById,
+  getTherapistPatients,
+  getParentDetails,
 } = require("../controllers/child.controller");
 
-// 2. ייבוא שני המידלוורים (הוספתי את verifyToken)
 const { verifyAdmin, verifyToken } = require("../middleware/auth.middleware");
-// נתיב ליצירת ילד - רק אדמין מורשה
-// 1. קודם כל הנתיבים הסטטיים (הקבועים)
-router.post("/create", verifyAdmin, createChild);
-router.get("/myChildren", verifyToken, getParentChildren); // תמיד מעל הנתיב עם הנקודתיים!
 
-// 2. רק בסוף הנתיבים הדינמיים (עם הפרמטרים)
+router.post("/create", verifyAdmin, createChild);
+router.get("/myChildren", verifyToken, getParentChildren);
+router.get("/my-patients", verifyToken, getTherapistPatients);
+
 router.get("/:childId", verifyToken, getChildById);
+
+router.get("/parent-info/:parentId", verifyToken, getParentDetails);
 
 module.exports = router;

@@ -34,7 +34,7 @@ const MENU_ITEMS = {
   ],
   admin: [
     { label: "ניהול מטופלים", path: "/patients" },
-    { label: "פניות", path: "/lids" },
+    { label: "פניות", path: "/therapist/inbox" },
     { label: "לוח שנה", path: "/diary" },
     { label: "אבחונים", path: "/diagnos" },
     { label: "דוחות", path: "/checks" },

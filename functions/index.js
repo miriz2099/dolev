@@ -10,6 +10,8 @@ const inquiryRoutes = require("./routes/inquiryRoutes");
 const userRoutes = require("./routes/userRoutes");
 const childRoutes = require("./routes/childRoutes");
 const questionnaireRoutes = require("./routes/questionnaireRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const diagnosisRoutes = require("./routes/diagnosisRoutes");
 
 // אתחול Firebase Admin
 if (admin.apps.length === 0) {
@@ -28,6 +30,8 @@ app.use("/inquiries", inquiryRoutes);
 app.use("/users", userRoutes);
 app.use("/children", childRoutes);
 app.use("/questionnaires", questionnaireRoutes);
+app.use("/messages", messageRoutes);
+app.use("/diagnoses", diagnosisRoutes);
 
 // הייצוא של הפונקציה לאוויר
 exports.api = functions.https.onRequest(app);
