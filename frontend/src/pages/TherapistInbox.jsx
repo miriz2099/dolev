@@ -11,7 +11,6 @@ const TherapistInbox = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { currentUser } = useAuth();
 
-  // טעינה ראשונית של ההודעות
   useEffect(() => {
     if (currentUser) {
       fetchMessages();
@@ -22,7 +21,8 @@ const TherapistInbox = () => {
     try {
       setLoading(true);
       const token = await currentUser.getIdToken();
-      const data = await therapistService.getMyMessages(token);
+      // קריאה לפונקציה החדשה בסרביס המאוחד
+      const data = await messageService.getMyInbox(token);
       setMessages(data);
     } catch (err) {
       console.error("Error fetching inbox:", err);
@@ -38,16 +38,11 @@ const TherapistInbox = () => {
 
   const handleDeleteMessage = async (messageId) => {
     if (!window.confirm("האם את בטוחה שברצונך למחוק את ההודעה?")) return;
-
     try {
       const token = await currentUser.getIdToken();
-      // שימוש ב-therapistService (השם המיובא למעלה)
       await messageService.deleteMessage(messageId, token);
-
-      // עדכון הסטייט המקומי - מחיקה ויזואלית מיידית
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     } catch (err) {
-      console.error(err);
       alert("מחיקת ההודעה נכשלה");
     }
   };
@@ -56,19 +51,18 @@ const TherapistInbox = () => {
     try {
       const token = await currentUser.getIdToken();
       const payload = {
-        receiverId: selectedMsg.senderId,
+        receiverId: selectedMsg.senderId, // השולח המקורי הופך למקבל
         childId: selectedMsg.childId,
         text: text,
       };
-      await therapistService.sendMessage(payload, token);
+      await messageService.sendMessage(payload, token);
       alert("התשובה נשלחה בהצלחה");
       setIsModalOpen(false);
-      fetchMessages(); // רענון הרשימה
+      fetchMessages();
     } catch (err) {
       alert("שגיאה בשליחה");
     }
   };
-
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
       <div className="max-w-4xl mx-auto">

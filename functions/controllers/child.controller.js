@@ -37,6 +37,7 @@ const createChild = async (req, res) => {
 };
 
 const getParentChildren = async (req, res) => {
+  console.log(">>> REQUEST RECEIVED FOR CHILD ID:====================="); // תוסיפי את זה
   try {
     // ה-UID מגיע מה-Middleware של ה-Auth (מבוסס על ה-Token)
     const parentId = req.user.uid;

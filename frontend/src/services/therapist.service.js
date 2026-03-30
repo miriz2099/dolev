@@ -33,12 +33,12 @@ const getParentInfo = async (parentId, token) => {
   );
 };
 
-const sendMessage = async (payload, token) => {
-  return await fetchWithAuth(`${BASE_URL}/messages/send`, token, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-};
+// const sendMessage = async (payload, token) => {
+//   return await fetchWithAuth(`${BASE_URL}/messages/send`, token, {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// };
 // שליפת רשימת מטופלים למאבחן
 const getMyPatients = async (token) => {
   return await fetchWithAuth(`${BASE_URL}/children/my-patients`, token, {
@@ -85,24 +85,24 @@ const getParentAnswers = async (childId, token) => {
   );
 };
 
-const getMyMessages = async (token) => {
-  return await fetchWithAuth(
-    `${import.meta.env.VITE_API_URL}/messages/my-inbox`,
-    token,
-    {
-      method: "GET",
-    },
-  );
-};
+// const getMyMessages = async (token) => {
+//   return await fetchWithAuth(
+//     `${import.meta.env.VITE_API_URL}/messages/my-inbox`,
+//     token,
+//     {
+//       method: "GET",
+//     },
+//   );
+// };
 // ייצוא כל הפונקציות
 export default {
   getMyPatients,
   getParentInfo,
-  sendMessage,
+  // sendMessage,
   getChildDetails,
   getDiagnoses,
   openNewDiagnosis,
   updateQuestionnaireStatus,
   getParentAnswers,
-  getMyMessages,
+  // getMyMessages,
 };
