@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // ✅
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import ChildTabsHeader from "../components/ChildTabsHeader";
 import ContactTherapist from "../components/ContactTherapist";
 import ParentQuestionnaire from "../components/ParentQuestionnaire";
+import FullChatWindow from "../components/FullChatWindow";
+import GenericMessageModal from "../components/GenericMessageModal";
 import messageService from "../services/message.service";
 import therapistService from "../services/therapist.service";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
-import GenericMessageModal from "../components/GenericMessageModal";
 
 const ChildDetails = () => {
   const { childId } = useParams();
@@ -22,27 +23,27 @@ const ChildDetails = () => {
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // לוגיקת שאלון בית ספר
+  // School Questionnaire Logic
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherName, setTeacherName] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
-  const [schoolInvite, setSchoolInvite] = useState(null); // אחסון נתוני ההזמנה לבי"ס
-
+  const [schoolInvite, setSchoolInvite] = useState(null);
   const [activeDiagnosis, setActiveDiagnosis] = useState(null);
 
-  // פונקציה לבדיקת סטטוסים (אבחון + הזמנת בי"ס)
+  // 🔴 חישוב תקין של "יש הודעות חדשות" - רק הודעות שאני הנמען שלהן
+  const hasUnreadMessages = messages.some(
+    (m) => !m.read && m.receiverId === currentUser?.uid,
+  );
+
+  // Fetch active diagnosis & school invite status
   const fetchStatus = useCallback(async () => {
     try {
       const token = await currentUser.getIdToken();
-
-      // 1. משיכת אבחון פעיל
       const diagnoses = await therapistService.getDiagnoses(childId, token);
       if (diagnoses && diagnoses.length > 0) {
         setActiveDiagnosis(diagnoses[0]);
       }
-
-      // 2. משיכת הזמנה לבית ספר (הפונקציה שכתבנו בסרביס)
       const invite = await schoolQuestionnaireService.getInviteByChild(
         childId,
         token,
@@ -57,53 +58,52 @@ const ChildDetails = () => {
     if (currentUser && childId) fetchStatus();
   }, [fetchStatus, currentUser, childId]);
 
-  // שליפת נתוני ילד והודעות
+  // Fetch child data and messages
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = await currentUser.getIdToken();
+      const baseUrl = import.meta.env.VITE_API_URL;
+
+      const childRes = await fetch(`${baseUrl}/children/${childId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const childJson = await childRes.json();
+      setChildData(childJson);
+
+      const msgs = await messageService.getChildMessages(childId, token);
+      setMessages(msgs);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [childId, currentUser]);
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const token = await currentUser.getIdToken();
-        const baseUrl = import.meta.env.VITE_API_URL;
-
-        const childRes = await fetch(`${baseUrl}/children/${childId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const childJson = await childRes.json();
-        setChildData(childJson);
-
-        const msgs = await messageService.getChildMessages(childId, token);
-        setMessages(msgs);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (currentUser && childId) fetchData();
-  }, [currentUser, childId]);
+  }, [fetchData, currentUser, childId]);
 
+  // Mark as read - רק כשהמשתמש בלשונית הודעות
   useEffect(() => {
     const markAsRead = async () => {
-      // 1. בודקים אם אנחנו בלשונית הודעות
-      // 2. בודקים אם יש בכלל הודעות שלא נקראו (כדי לא לשלוח סתם בקשות)
-      if (activeTab === "messages" && messages.some((m) => !m.read)) {
+      if (activeTab === "messages" && hasUnreadMessages) {
         try {
           const token = await currentUser.getIdToken();
-
-          // קריאה לסרביס (שימי לב שזה השם הנכון של הפונקציה בסרביס שלך)
           await messageService.markMessagesAsRead(childId, token);
-
-          // עדכון הסטייט המקומי כדי שהנקודה האדומה תיעלם מיד מהמסך
-          setMessages((prev) => prev.map((msg) => ({ ...msg, read: true })));
+          // עדכון הסטייט המקומי - רק הודעות שאני הנמען שלהן
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.receiverId === currentUser.uid ? { ...msg, read: true } : msg,
+            ),
+          );
         } catch (err) {
           console.error("Failed to mark messages as read:", err);
         }
       }
     };
-
     markAsRead();
-  }, [activeTab, childId, currentUser, messages]);
+  }, [activeTab, childId, currentUser, hasUnreadMessages]);
 
   const handleSendToSchool = async () => {
     if (!teacherEmail || !teacherName) {
@@ -117,10 +117,9 @@ const ChildDetails = () => {
         { childId, teacherEmail, teacherName },
         token,
       );
-
       alert(`הקישור נשלח בהצלחה למייל של ${teacherName}`);
       setIsSchoolModalOpen(false);
-      fetchStatus(); // רענון הסטטוס כדי לנעול את הכפתור מיד
+      fetchStatus();
     } catch (err) {
       console.error("Error sending invite:", err);
       alert("שגיאה בשליחת השאלון");
@@ -129,6 +128,7 @@ const ChildDetails = () => {
     }
   };
 
+  // שליחת הודעה דרך המודל המהיר (Quick Action)
   const handleSendMessage = async (text) => {
     try {
       const token = await currentUser.getIdToken();
@@ -142,24 +142,10 @@ const ChildDetails = () => {
       );
       alert("ההודעה נשלחה למאבחן");
       setIsModalOpen(false);
+      // רענון ההודעות כדי שיופיעו בצ'אט
+      fetchData();
     } catch (err) {
       alert("שגיאה בשליחה");
-    }
-  };
-
-  const handleDeleteMessage = async (messageId) => {
-    if (!window.confirm("האם למחוק את ההודעה לצמיתות?")) return;
-
-    try {
-      const token = await currentUser.getIdToken();
-      // קריאה לפונקציית המחיקה בסרביס ההודעות שלך
-      await messageService.deleteMessage(messageId, token);
-
-      // עדכון הסטייט המקומי כדי שההודעה תיעלם מהמסך מיד
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-    } catch (err) {
-      console.error("Failed to delete message:", err);
-      alert("שגיאה במחיקת ההודעה");
     }
   };
 
@@ -202,97 +188,24 @@ const ChildDetails = () => {
           </div>
         );
 
-      // case "messages":
-      //   return (
-      //     <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[400px] text-right animate-fadeIn font-sans">
-      //       <h2 className="text-3xl font-bold text-gray-800 mb-6 pb-6 border-b border-gray-100">
-      //         הודעות מהמאבחן
-      //       </h2>
-      //       {messages.length === 0 ? (
-      //         <p className="text-gray-500 italic">אין הודעות חדשות.</p>
-      //       ) : (
-      //         <div className="space-y-4">
-      //           {messages.map((msg) => (
-      //             <div
-      //               key={msg.id}
-      //               className="p-6 bg-blue-50 border border-blue-100 rounded-2xl"
-      //             >
-      //               <p className="text-gray-800">{msg.text}</p>
-      //               <span className="text-xs text-blue-400 mt-2 block font-mono">
-      //                 {new Date(msg.createdAt).toLocaleString("he-IL")}
-      //               </span>
-      //             </div>
-      //           ))}
-      //         </div>
-      //       )}
-      //     </div>
-      //   );
-
+      // ✨ הלשונית החדשה - צ'אט מלא במקום רשימת הודעות
       case "messages":
         return (
-          <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[400px] text-right animate-fadeIn font-sans">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 pb-6 border-b border-gray-100">
-              הודעות מהמאבחן
-            </h2>
-            {messages.length === 0 ? (
-              <p className="text-gray-500 italic">אין הודעות חדשות.</p>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`p-6 border rounded-2xl relative group transition-all ${
-                      msg.read
-                        ? "bg-white border-gray-100"
-                        : "bg-blue-50/50 border-blue-100 shadow-sm"
-                    }`}
-                  >
-                    {/* כפתור מחיקה - מופיע רק כשעוברים עם העכבר על ההודעה (בזכות group-hover) */}
-                    <button
-                      onClick={() => handleDeleteMessage(msg.id)}
-                      className="absolute left-6 top-6 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-2"
-                      title="מחק הודעה"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-
-                    <div className="ml-8">
-                      {" "}
-                      {/* ריווח כדי שהטקסט לא יעלה על הכפתור */}
-                      <p className="text-gray-800 leading-relaxed">
-                        {msg.text}
-                      </p>
-                      <span className="text-xs text-blue-400 mt-2 block font-mono">
-                        {new Date(msg.createdAt).toLocaleString("he-IL")}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="bg-transparent rounded-3xl h-[600px] animate-fadeIn">
+            <FullChatWindow
+              childId={childId}
+              receiverId={childData.therapistId}
+              onBack={() => setActiveTab("info")}
+            />
           </div>
         );
+
       case "forms":
         const qStatus = activeDiagnosis?.parentQuestionnaireStatus;
         const canFillParent =
           childData.canFillQuestionnaire &&
           (qStatus === "פתוח" || qStatus === "לתיקון");
         const hasActiveDiag = !!activeDiagnosis;
-
-        // לוגיקת הנעילה לשאלון בית ספר
         const isSchoolInviteActive =
           schoolInvite &&
           (schoolInvite.status === "pending" ||
@@ -300,13 +213,17 @@ const ChildDetails = () => {
 
         return (
           <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[400px] text-right animate-fadeIn font-sans">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 pb-6 border-b border-gray-100 font-sans">
+            <h2 className="text-3xl font-bold text-gray-800 mb-6 pb-6 border-b border-gray-100">
               אישורים וטפסים
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-sans">
-              {/* כרטיס שאלון הורים */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Parent Questionnaire Card */}
               <div
-                className={`p-6 border rounded-2xl flex flex-col items-start gap-4 transition-all ${!canFillParent ? "bg-gray-50 opacity-80" : "bg-white border-blue-100 shadow-sm"}`}
+                className={`p-6 border rounded-2xl flex flex-col items-start gap-4 transition-all ${
+                  !canFillParent
+                    ? "bg-gray-50 opacity-80"
+                    : "bg-white border-blue-100 shadow-sm"
+                }`}
               >
                 <div className="flex justify-between w-full">
                   <span className="text-4xl">🏠</span>
@@ -316,37 +233,43 @@ const ChildDetails = () => {
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 font-sans">
-                  שאלון הורים
-                </h3>
-                <p className="text-gray-500 text-sm font-sans">
+                <h3 className="text-xl font-bold text-gray-800">שאלון הורים</h3>
+                <p className="text-gray-500 text-sm">
                   מילוי פרטים על הרקע ההתפתחותי והתנהגות הילד בבית.
                 </p>
                 <button
                   onClick={() => canFillParent && setShowQuestionnaire(true)}
                   disabled={!canFillParent}
-                  className={`mt-auto w-full py-3 rounded-xl font-bold transition-all ${canFillParent ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-300 text-gray-500"}`}
+                  className={`mt-auto w-full py-3 rounded-xl font-bold transition-all ${
+                    canFillParent
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-300 text-gray-500"
+                  }`}
                 >
                   {qStatus === "נשלח" ? "נשלח למאבחן" : "למילוי שאלון הורים"}
                 </button>
               </div>
 
-              {/* כרטיס שאלון בית ספר - עם לוגיקת הנעילה */}
+              {/* School Questionnaire Card */}
               <div
-                className={`p-6 border rounded-2xl flex flex-col items-start gap-4 transition-all ${!hasActiveDiag || isSchoolInviteActive ? "bg-gray-50 opacity-90 border-gray-200" : "bg-white border-green-100 shadow-sm"}`}
+                className={`p-6 border rounded-2xl flex flex-col items-start gap-4 transition-all ${
+                  !hasActiveDiag || isSchoolInviteActive
+                    ? "bg-gray-50 opacity-90 border-gray-200"
+                    : "bg-white border-green-100 shadow-sm"
+                }`}
               >
-                <div className="flex justify-between w-full font-sans">
-                  <span className="text-4xl font-sans">🏫</span>
+                <div className="flex justify-between w-full">
+                  <span className="text-4xl">🏫</span>
                   {isSchoolInviteActive && (
                     <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 font-bold">
                       ✅ הקישור נשלח
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 font-sans">
+                <h3 className="text-xl font-bold text-gray-800">
                   שאלון בית ספר
                 </h3>
-                <p className="text-gray-500 text-sm font-sans">
+                <p className="text-gray-500 text-sm">
                   {isSchoolInviteActive
                     ? `נשלח למורה ${schoolInvite.teacherName}. הגישה למילוי חסומה כעת.`
                     : "שליחת קישור מאובטח למורה למילוי חוות דעת לימודית."}
@@ -369,7 +292,7 @@ const ChildDetails = () => {
               </div>
             </div>
 
-            {/* מודל הזנת פרטי מורה */}
+            {/* Teacher Details Modal */}
             {isSchoolModalOpen && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 animate-fadeIn">
                 <div
@@ -439,7 +362,7 @@ const ChildDetails = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-7xl mx-auto flex justify-start mb-6 font-sans">
+      <div className="max-w-7xl mx-auto flex justify-start mb-6">
         <button
           onClick={() =>
             showQuestionnaire ? setShowQuestionnaire(false) : navigate(-1)
@@ -455,25 +378,24 @@ const ChildDetails = () => {
           <ChildTabsHeader
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            hasUnreadMessages={messages.some((m) => !m.read)}
+            hasUnreadMessages={hasUnreadMessages}
           />
         )}
         <div
-          className={`grid grid-cols-1 ${showQuestionnaire ? "" : "lg:grid-cols-12"} gap-8 items-start`}
+          className={`grid grid-cols-1 ${
+            showQuestionnaire ? "" : "lg:grid-cols-12"
+          } gap-8 items-start`}
         >
           <div className={showQuestionnaire ? "w-full" : "lg:col-span-9"}>
             {renderContent()}
           </div>
           {!showQuestionnaire && (
             <div className="lg:col-span-3">
-              <div
+              {/* 🎯 הכפילות המכוונת - Quick Action לשליחת הודעה מהירה */}
+              <ContactTherapist
+                therapistName={childData?.therapistName || "המרכז"}
                 onClick={() => setIsModalOpen(true)}
-                className="cursor-pointer"
-              >
-                <ContactTherapist
-                  therapistName={childData?.therapistName || "המרכז"}
-                />
-              </div>
+              />
             </div>
           )}
         </div>
