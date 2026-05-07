@@ -22,6 +22,7 @@ import PublicSchoolSurvey from "./pages/PublicSchoolSurvey";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import UserProfile from "./pages/UserProfile";
+import PublicConsentForm from "./pages/PublicConsentForm";
 
 import { useAuth } from "./contexts/AuthContext";
 
@@ -80,6 +81,7 @@ function App() {
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="school-survey/:token" element={<PublicSchoolSurvey />} />
+          <Route path="consent/:token" element={<PublicConsentForm />} />
 
           {/* --- נתיבים להורים (Patient) + אדמין --- */}
           <Route

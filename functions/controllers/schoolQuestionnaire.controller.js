@@ -35,13 +35,13 @@ const createSchoolInvitation = async (req, res) => {
       port: 465,
       secure: true, // שימוש ב-SSL
       auth: {
-        user: "***REMOVED***",
-        pass: "***REMOVED***", // כאן חייב לבוא הקוד שגוגל נתנה לך
+        user: process.env.SMTP_USER, // ← נשלף מ-.env
+        pass: process.env.SMTP_PASS, // כאן חייב לבוא הקוד שגוגל נתנה לך
       },
     });
 
     const mailOptions = {
-      from: '"מרכז האבחון" <***REMOVED***>',
+      from: '"מרכז האבחון" ',
       to: teacherEmail,
       subject: `שאלון הערכה לימודי עבור תלמיד/ה`,
       html: `

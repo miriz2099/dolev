@@ -6,6 +6,12 @@ const {
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,
+  addRequiredAssessment,
+  updateRequiredAssessment,
+  deleteRequiredAssessment,
+  getAvailableSlots,
+  bookAssessmentAppointment,
+  cancelAssessmentAppointment,
 } = require("../controllers/diagnosis.controller");
 const { verifyToken } = require("../middleware/auth.middleware");
 
@@ -18,5 +24,35 @@ router.get(
   "/parent-answers/:childId",
   verifyToken,
   getParentQuestionnaireAnswers,
+);
+
+router.post("/:diagnosisId/assessments", verifyToken, addRequiredAssessment);
+router.put(
+  "/:diagnosisId/assessments/:assessmentId",
+  verifyToken,
+  updateRequiredAssessment,
+);
+router.delete(
+  "/:diagnosisId/assessments/:assessmentId",
+  verifyToken,
+  deleteRequiredAssessment,
+);
+router.get(
+  "/:diagnosisId/assessments/:assessmentId/available-slots",
+  verifyToken,
+  getAvailableSlots,
+);
+
+router.post(
+  "/:diagnosisId/assessments/:assessmentId/book",
+  verifyToken,
+  bookAssessmentAppointment,
+);
+
+// 🆕 ביטול תור (הורה או מאבחן)
+router.delete(
+  "/:diagnosisId/assessments/:assessmentId/cancel",
+  verifyToken,
+  cancelAssessmentAppointment,
 );
 module.exports = router;

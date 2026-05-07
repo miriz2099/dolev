@@ -85,15 +85,87 @@ const getParentAnswers = async (childId, token) => {
   );
 };
 
-// const getMyMessages = async (token) => {
-//   return await fetchWithAuth(
-//     `${import.meta.env.VITE_API_URL}/messages/my-inbox`,
-//     token,
-//     {
-//       method: "GET",
-//     },
-//   );
-// };
+const addRequiredAssessment = async (diagnosisId, payload, token) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload), // { name, durationMinutes }
+    },
+  );
+};
+
+// עדכון אבחון נדרש (רק כשעדיין pending)
+const updateRequiredAssessment = async (
+  diagnosisId,
+  assessmentId,
+  payload,
+  token,
+) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments/${assessmentId}`,
+    token,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload), // { name?, durationMinutes? }
+    },
+  );
+};
+
+// מחיקת אבחון נדרש (רק כשעדיין pending)
+const deleteRequiredAssessment = async (diagnosisId, assessmentId, token) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments/${assessmentId}`,
+    token,
+    {
+      method: "DELETE",
+    },
+  );
+};
+
+// ============================================
+// 🆕 קביעת ובחירת תורים (להורה)
+// ============================================
+
+// שליפת slots פנויים לאבחון מסוים
+const getAvailableSlots = async (diagnosisId, assessmentId, token) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments/${assessmentId}/available-slots`,
+    token,
+    { method: "GET" },
+  );
+};
+
+// קביעת תור לאבחון
+const bookAssessmentAppointment = async (
+  diagnosisId,
+  assessmentId,
+  payload, // { start, end }
+  token,
+) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments/${assessmentId}/book`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+};
+
+// ביטול תור
+const cancelAssessmentAppointment = async (
+  diagnosisId,
+  assessmentId,
+  token,
+) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/assessments/${assessmentId}/cancel`,
+    token,
+    { method: "DELETE" },
+  );
+};
 // ייצוא כל הפונקציות
 export default {
   getMyPatients,
@@ -105,4 +177,10 @@ export default {
   updateQuestionnaireStatus,
   getParentAnswers,
   // getMyMessages,
+  addRequiredAssessment,
+  updateRequiredAssessment,
+  deleteRequiredAssessment,
+  getAvailableSlots,
+  bookAssessmentAppointment,
+  cancelAssessmentAppointment,
 };
