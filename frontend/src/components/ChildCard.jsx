@@ -30,7 +30,7 @@ const ChildCard = ({ child }) => {
             </svg>
           </div>
           <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
-            ת"ז: {child.idNumber}
+            מספר מזהה: {child.idNumber}
           </span>
         </div>
 

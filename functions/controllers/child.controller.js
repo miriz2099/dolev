@@ -1,40 +1,80 @@
 // backend/src/controllers/child.controller.js
 const { db } = require("../config/firebase");
+const { generateChildId } = require("../helpers/childId.helper");
 
 const createChild = async (req, res) => {
   try {
-    const { firstName, lastName, idNumber, birthDate, parentId, therapistId } =
-      req.body;
+    // ⚠️ idNumber הוסר מהקלט - נוצר אוטומטית בשרת
+    const { firstName, lastName, birthDate, parentId, therapistId } = req.body;
 
-    // בדיקה בסיסית שכל השדות הגיעו
-    if (!firstName || !lastName || !idNumber || !parentId || !therapistId) {
-      return res.status(400).json({ error: "Missing required fields" });
+    // ולידציה - idNumber לא נדרש יותר מהקלט
+    if (!firstName || !lastName || !parentId || !therapistId) {
+      return res.status(400).json({
+        error: "חסרים שדות חובה: שם פרטי, שם משפחה, הורה ומאבחן",
+      });
     }
 
-    // יצירת אובייקט הילד
+    // 🆕 יצירת מזהה ייחודי בשרת
+    const idNumber = await generateChildId();
+
     const newChild = {
       firstName,
       lastName,
-      idNumber,
-      birthDate,
-      parentId, // ה-UID של ההורה מה-Dropdown
-      therapistId, // ה-UID של המטפל מה-Dropdown
+      idNumber, // ← נוצר אוטומטית
+      birthDate: birthDate || null,
+      parentId,
+      therapistId,
       canFillQuestionnaire: false,
       createdAt: new Date().toISOString(),
     };
 
-    // שמירה ב-Collection חדש שנקרא children
     const docRef = await db.collection("children").add(newChild);
 
     res.status(201).json({
       message: "Child profile created successfully",
       id: docRef.id,
+      idNumber, // ← מחזירים גם את ה-ID החדש למאבחן
     });
   } catch (error) {
     console.error("Error creating child profile:", error);
     res.status(500).json({ error: "Failed to create child profile" });
   }
 };
+
+// const createChild = async (req, res) => {
+//   try {
+//     const { firstName, lastName, idNumber, birthDate, parentId, therapistId } =
+//       req.body;
+
+//     // בדיקה בסיסית שכל השדות הגיעו
+//     if (!firstName || !lastName || !idNumber || !parentId || !therapistId) {
+//       return res.status(400).json({ error: "Missing required fields" });
+//     }
+
+//     // יצירת אובייקט הילד
+//     const newChild = {
+//       firstName,
+//       lastName,
+//       idNumber,
+//       birthDate,
+//       parentId, // ה-UID של ההורה מה-Dropdown
+//       therapistId, // ה-UID של המטפל מה-Dropdown
+//       canFillQuestionnaire: false,
+//       createdAt: new Date().toISOString(),
+//     };
+
+//     // שמירה ב-Collection חדש שנקרא children
+//     const docRef = await db.collection("children").add(newChild);
+
+//     res.status(201).json({
+//       message: "Child profile created successfully",
+//       id: docRef.id,
+//     });
+//   } catch (error) {
+//     console.error("Error creating child profile:", error);
+//     res.status(500).json({ error: "Failed to create child profile" });
+//   }
+// };
 
 const getParentChildren = async (req, res) => {
   console.log(">>> REQUEST RECEIVED FOR CHILD ID:====================="); // תוסיפי את זה

@@ -178,7 +178,7 @@ const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
                 </span>
               </div>
               <div>
-                <span className="text-gray-500">תעודת זהות: </span>
+                <span className="text-gray-500">מספר מזהה : </span>
                 <span className="font-bold text-gray-900">
                   {childInfo?.idNumber || "—"}
                 </span>

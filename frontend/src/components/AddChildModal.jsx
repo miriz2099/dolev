@@ -67,17 +67,14 @@ const AddChildModal = ({ isOpen, onClose }) => {
       const auth = getAuth();
       const token = await auth.currentUser.getIdToken();
 
-      const response = await fetch(
-        `${API_URL}/children/create`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData),
+      const response = await fetch(`${API_URL}/children/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify(formData),
+      });
 
       if (response.ok) {
         alert("המטופל נוסף בהצלחה!");
@@ -148,7 +145,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            {/* <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 ת.ז. ילד
               </label>
@@ -162,7 +159,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
                 }
                 required
               />
-            </div>
+            </div> */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 תאריך לידה

@@ -489,7 +489,7 @@ const DiagnosisDetails = () => {
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm mb-2">תעודת זהות</p>
+                <p className="text-gray-400 text-sm mb-2">מספר מזהה</p>
                 <p className="text-2xl font-bold">{childData.idNumber}</p>
               </div>
               <div>

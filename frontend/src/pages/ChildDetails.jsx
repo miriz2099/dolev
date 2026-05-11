@@ -1659,7 +1659,7 @@ const ChildDetails = () => {
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm mb-1">תעודת זהות</p>
+                <p className="text-gray-400 text-sm mb-1">מספר מזהה</p>
                 <p className="text-xl font-bold text-gray-900">
                   {childData.idNumber}
                 </p>

@@ -119,7 +119,7 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">תעודת זהות: </span>
+                  <span className="text-gray-500">מספר מזהה : </span>
                   <span className="font-bold text-gray-900">
                     {childInfo?.idNumber || "—"}
                   </span>
