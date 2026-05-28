@@ -652,13 +652,13 @@ const DiagnosisDetails = () => {
                     תקשורת מהירה
                   </h3>
                   <p className="text-indigo-700 text-sm mb-6">
-                    עדכני את ההורים על התקדמות האבחון או בקשי פרטים נוספים.
+                    עדכון ההורים על התקדמות האבחון או בקשת פרטים נוספים.
                   </p>
                   <button
                     onClick={() => setIsModalOpen(true)}
                     className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
                   >
-                    שלחי הודעה להורה
+                    שליחת הודעה להור{" "}
                   </button>
                 </div>
               </div>

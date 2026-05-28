@@ -134,17 +134,13 @@ const RequiredAssessmentsManager = ({
           <h3 className="text-2xl font-bold text-gray-800">
             🧪 אבחונים נדרשים
           </h3>
-          <p className="text-gray-500 text-sm mt-1">
-            הגדירי את האבחונים שיש לבצע - ההורה יוכל לקבוע תור לכל אחד מהם לפי
-            שעות הזמינות שלך.
-          </p>
         </div>
         {!isFormOpen && (
           <button
             onClick={openAddForm}
             className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md text-sm shrink-0"
           >
-            + הוסיפי אבחון
+            + הוספת אבחון
           </button>
         )}
       </div>
@@ -239,7 +235,7 @@ const RequiredAssessmentsManager = ({
             טרם הוגדרו אבחונים נדרשים לתהליך זה.
           </p>
           <p className="text-sm mt-2 text-gray-400">
-            לחצי על "הוסיפי אבחון" כדי להתחיל.
+            יש ללחוץ על "הוספת אבחון"
           </p>
         </div>
       ) : (

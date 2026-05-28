@@ -80,7 +80,7 @@ const Patients = () => {
             </span>
             <input
               type="text"
-              placeholder="חפש לפי שם או מספר מזהה..."
+              placeholder="חפש/י לפי שם או מספר מזהה..."
               className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

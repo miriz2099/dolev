@@ -495,7 +495,7 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
         onClose={() => setIsCorrectionModalOpen(false)}
         onSend={handleConfirmCorrection}
         title="החזרת שאלון לתיקון"
-        placeholder="הוסיפי הערות להורים (מה עליהם לתקן)..."
+        placeholder=" הערות להורים (מה עליהם לתקן)..."
       />
     </div>
   );

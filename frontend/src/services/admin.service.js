@@ -44,10 +44,9 @@ export const deleteStaffMember = async (userId) => {
   return await response.json();
 };
 
-// עדכון
 export const updateStaffMember = async (userId, updateData) => {
   const token = await auth.currentUser.getIdToken();
-  const response = await fetch(`${API_URL}/update-staff/${userId}`, {
+  const response = await fetch(`${API_URL}/admin/update-staff/${userId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

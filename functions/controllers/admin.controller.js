@@ -18,7 +18,9 @@ exports.createStaff = async (req, res) => {
       phone,
       role,
       // status: "approved",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // createdAt: admin.firestore.FieldValue.serverTimestamp(),
+
+      createdAt: new Date(),
     });
 
     res.status(201).json({ message: "Success", uid: userRecord.uid });

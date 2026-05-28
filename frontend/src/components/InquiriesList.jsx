@@ -209,17 +209,14 @@ const InquiriesList = () => {
 
       const token = await user.getIdToken();
 
-      const response = await fetch(
-        `${API_URL}/inquiries/${id}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
+      const response = await fetch(`${API_URL}/inquiries/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({ status: newStatus }),
+      });
 
       if (response.ok) {
         if (newStatus === "completed") {
@@ -309,9 +306,9 @@ const InquiriesList = () => {
                     }
                     className="text-xs bg-white border border-gray-300 text-gray-700 py-1.5 px-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer hover:border-gray-400 transition-all"
                   >
-                    <option value="pending">סמן כחדשה</option>
-                    <option value="in-progress">עבר לטיפול</option>
-                    <option value="completed">סיים ומחק</option>
+                    <option value="pending">סימון כחדשה</option>
+                    <option value="in-progress">העברה לטיפול</option>
+                    <option value="completed">סיום ומחיקה</option>
                   </select>
                 </td>
               </tr>

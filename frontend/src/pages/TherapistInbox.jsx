@@ -104,9 +104,6 @@ const TherapistInbox = () => {
         ) : (
           <div className="text-center animate-fadeIn opacity-40">
             <div className="text-8xl mb-6">💬</div>
-            <h3 className="text-xl font-medium text-gray-600">
-              בחרי שיחה מהרשימה
-            </h3>
           </div>
         )}
       </div>
