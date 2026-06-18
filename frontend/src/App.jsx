@@ -15,6 +15,7 @@ import Isur from "./pages/Isur";
 import TherapistInbox from "./pages/TherapistInbox";
 import ApproveUsers from "./pages/ApproveUsers";
 import StaffManagement from "./pages/StaffManagement";
+import FamilyManagement from "./pages/FamilyManagement";
 import AllChildren from "./pages/AllParentChildren";
 import ChildDetails from "./pages/ChildDetails";
 import DiagnosisDetails from "./pages/DiagnosisDetails";
@@ -181,6 +182,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <StaffManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="families"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <FamilyManagement />
               </ProtectedRoute>
             }
           />

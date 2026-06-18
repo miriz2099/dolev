@@ -75,7 +75,7 @@ const schoolQuestionnaireService = {
       headers: {
         Authorization: `Bearer ${token}`, // ההורה מזדהה מול השרת
       },
-      body: JSON.stringify(payload), // מכיל childId, teacherEmail, teacherName
+      body: JSON.stringify(payload), // מכיל childId, diagnosisId, teacherEmail, teacherName
     });
   },
 
@@ -106,13 +106,13 @@ const schoolQuestionnaireService = {
       },
     );
   },
-  getSurveyForTherapist: async (childId, token) => {
+  getSurveyForTherapist: async (diagnosisId, token) => {
     const headers = {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     };
     const response = await fetch(
-      `${BASE_URL}/school-questionnaires/child/${childId}`,
+      `${BASE_URL}/school-questionnaires/diagnosis/${diagnosisId}`,
       {
         method: "GET",
         headers,
@@ -125,36 +125,36 @@ const schoolQuestionnaireService = {
     return response.json();
   },
 
-  resendInvite: async (childId, token) => {
+  resendInvite: async (diagnosisId, token) => {
     const response = await fetch(`${BASE_URL}/school-questionnaires/resend`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ childId }),
+      body: JSON.stringify({ diagnosisId }),
     });
     if (!response.ok) throw new Error("Failed to resend invite");
     return response.json();
   },
 
-  resetInvite: async (childId, token) => {
+  resetInvite: async (diagnosisId, token) => {
     const response = await fetch(`${BASE_URL}/school-questionnaires/reset`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ childId }),
+      body: JSON.stringify({ diagnosisId }),
     });
     if (!response.ok) throw new Error("Failed to reset invite");
     return response.json();
   },
 
-  getInviteByChild: async (childId, token) => {
+  getInviteByDiagnosis: async (diagnosisId, token) => {
     try {
       const response = await fetch(
-        `${BASE_URL}/school-questionnaires/invitation/${childId}`,
+        `${BASE_URL}/school-questionnaires/invitation/${diagnosisId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -167,7 +167,7 @@ const schoolQuestionnaireService = {
 
       return await response.json();
     } catch (error) {
-      console.error("Error in getInviteByChild service:", error);
+      console.error("Error in getInviteByDiagnosis service:", error);
       return null;
     }
   },

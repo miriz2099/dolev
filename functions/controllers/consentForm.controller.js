@@ -20,15 +20,21 @@ const createMailTransporter = () => {
 };
 
 // ============================================
-// 1. שליפת טופס הסכמה לפי childId (להורה הרשום ולמאבחן)
-// GET /consent-forms/by-child/:childId
+// 1. שליפת טופס הסכמה לפי diagnosisId (להורה הרשום ולמאבחן)
+// GET /consent-forms/by-diagnosis/:diagnosisId
 // ============================================
-const getConsentFormByChild = async (req, res) => {
+const getConsentFormByDiagnosis = async (req, res) => {
   try {
-    const { childId } = req.params;
+    const { diagnosisId } = req.params;
     const userId = req.user.uid;
 
-    // אימות בעלות - הורה או מאבחן של הילד
+    // אימות בעלות דרך diagnosis -> child (הורה או מאבחן)
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const { childId } = diagDoc.data();
+
     const childDoc = await db.collection("children").doc(childId).get();
     if (!childDoc.exists) {
       return res.status(404).json({ error: "הילד לא נמצא" });
@@ -40,22 +46,21 @@ const getConsentFormByChild = async (req, res) => {
       return res.status(403).json({ error: "אין הרשאה לצפות בטופס זה" });
     }
 
-    // שליפת ה-consent form הכי עדכני (יכולים להיות כמה אם נפתחו כמה אבחונים)
+    // טופס ההסכמה נוצר אוטומטית יחד עם האבחון - אחד לכל אבחון
     const snapshot = await db
       .collection("consent_forms")
-      .where("childId", "==", childId)
-      .orderBy("createdAt", "desc")
+      .where("diagnosisId", "==", diagnosisId)
       .limit(1)
       .get();
 
     if (snapshot.empty) {
-      return res.status(200).json(null); // עקבי עם getInvitationByChild
+      return res.status(200).json(null); // עקבי עם getInvitationByDiagnosis
     }
 
     const formDoc = snapshot.docs[0];
     res.status(200).json({ id: formDoc.id, ...formDoc.data() });
   } catch (error) {
-    console.error("Error in getConsentFormByChild:", error);
+    console.error("Error in getConsentFormByDiagnosis:", error);
     res.status(500).json({ error: "שגיאה בשליפת טופס ההסכמה" });
   }
 };
@@ -514,7 +519,7 @@ const signByExternalParent = async (req, res) => {
 };
 
 module.exports = {
-  getConsentFormByChild,
+  getConsentFormByDiagnosis,
   signByRegisteredParent,
   inviteSecondParent,
   getConsentFormByToken,

@@ -393,20 +393,26 @@ const DiagnosisDetails = () => {
     if (activeTab === "parents" && childData) fetchParentInfo();
   }, [activeTab, childData, parentData, currentUser]);
 
-  // 🆕 4. שליפת טופס ההסכמה
+  // 🆕 4. שליפת טופס ההסכמה של האבחון הנבחר (Diagnosis-centric)
   useEffect(() => {
     const loadConsentForm = async () => {
-      if (!childData) return;
+      if (!selectedDiagnosis?.id) {
+        setConsentForm(null);
+        return;
+      }
       try {
         const token = await currentUser.getIdToken();
-        const consent = await consentFormService.getByChild(childId, token);
+        const consent = await consentFormService.getByDiagnosis(
+          selectedDiagnosis.id,
+          token,
+        );
         setConsentForm(consent);
       } catch (err) {
         console.error("Error loading consent form:", err);
       }
     };
     loadConsentForm();
-  }, [childData, childId, currentUser]);
+  }, [selectedDiagnosis, currentUser]);
 
   // 3. שליפת רשימת אבחונים
   const loadDiagnoses = async () => {
@@ -611,6 +617,10 @@ const DiagnosisDetails = () => {
                 diagnosis={selectedDiagnosis}
                 onBack={() => setSelectedDiagnosis(null)}
                 onUpdateStatus={handleUpdateQStatus}
+                onDeleted={() => {
+                  setSelectedDiagnosis(null);
+                  loadDiagnoses();
+                }}
               />
             )}
           </div>

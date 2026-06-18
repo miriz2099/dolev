@@ -49,21 +49,30 @@ const submitQuestionnaire = async (req, res) => {
   }
 };
 
+// POST /questionnaires/draft  Body: { diagnosisId, formData }
+// טיוטת שאלון הורים מקושרת לאבחון ספציפי (Diagnosis-centric)
 const saveDraft = async (req, res) => {
   try {
-    const { childId, formData } = req.body;
+    const { diagnosisId, formData } = req.body;
     const parentId = req.user.uid; // חילוץ ה-UID מהטוקן ע"י ה-Middleware
 
-    if (!childId) {
-      return res.status(400).json({ message: "Missing childId" });
+    if (!diagnosisId) {
+      return res.status(400).json({ message: "Missing diagnosisId" });
     }
 
-    // שמירה/עדכון של טיוטה ספציפית לילד
-    // אנחנו משתמשים ב-ID קבוע לטיוטה כדי שלא ייווצרו כפילויות
-    const draftId = `draft_${childId}`;
+    // childId נגזר מהאבחון - לא נסמך על הקלט
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ message: "Diagnosis not found" });
+    }
+    const { childId } = diagDoc.data();
+
+    // ID קבוע לטיוטה לכל אבחון כדי שלא ייווצרו כפילויות
+    const draftId = `draft_${diagnosisId}`;
 
     await db.collection("questionnaires").doc(draftId).set(
       {
+        diagnosisId,
         childId,
         parentId,
         formData,
@@ -82,10 +91,11 @@ const saveDraft = async (req, res) => {
   }
 };
 
+// GET /questionnaires/draft/:diagnosisId
 const getDraft = async (req, res) => {
   try {
-    const { childId } = req.params; // נקבל את ה-ID מה-URL
-    const draftId = `draft_${childId}`;
+    const { diagnosisId } = req.params; // נקבל את ה-ID מה-URL
+    const draftId = `draft_${diagnosisId}`;
     const draftDoc = await db.collection("questionnaires").doc(draftId).get();
 
     if (!draftDoc.exists) {

@@ -105,7 +105,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden relative">
         <div className="bg-purple-600 p-6 text-white flex justify-between items-center">
-          <h2 className="text-xl font-bold">הוספת מטופל חדש (ילד)</h2>
+          <h2 className="text-xl font-bold">הוספת מטופל חדש (ילד\ה)</h2>
           <button onClick={onClose} className="text-white text-3xl">
             &times;
           </button>
@@ -116,7 +116,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                שם פרטי הילד
+                שם פרטי
               </label>
               <input
                 type="text"
@@ -130,7 +130,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                שם משפחה הילד
+                שם משפחה
               </label>
               <input
                 type="text"
@@ -145,21 +145,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                ת.ז. ילד
-              </label>
-              <input
-                type="text"
-                maxLength="9"
-                className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                value={formData.idNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, idNumber: e.target.value })
-                }
-                required
-              />
-            </div> */}
+           
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 תאריך לידה

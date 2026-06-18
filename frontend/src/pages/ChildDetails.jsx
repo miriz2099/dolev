@@ -1519,17 +1519,25 @@ const ChildDetails = () => {
     try {
       const token = await currentUser.getIdToken();
       const diagnoses = await therapistService.getDiagnoses(childId, token);
-      if (diagnoses && diagnoses.length > 0) {
-        setActiveDiagnosis(diagnoses[0]);
+      const active =
+        diagnoses && diagnoses.length > 0 ? diagnoses[0] : null;
+      setActiveDiagnosis(active);
+
+      // טפסים ושאלונים נשלפים לפי האבחון הפעיל (Diagnosis-centric)
+      if (!active) {
+        setSchoolInvite(null);
+        setConsentForm(null);
+        return;
       }
-      const invite = await schoolQuestionnaireService.getInviteByChild(
-        childId,
+
+      const invite = await schoolQuestionnaireService.getInviteByDiagnosis(
+        active.id,
         token,
       );
       setSchoolInvite(invite);
 
-      // 🆕 טעינת טופס ההסכמה
-      const consent = await consentFormService.getByChild(childId, token);
+      // 🆕 טעינת טופס ההסכמה של האבחון הפעיל
+      const consent = await consentFormService.getByDiagnosis(active.id, token);
       setConsentForm(consent);
     } catch (err) {
       console.error("Error fetching status:", err);
@@ -1591,11 +1599,20 @@ const ChildDetails = () => {
       alert("נא למלא את כל פרטי המורה");
       return;
     }
+    if (!activeDiagnosis?.id) {
+      alert("אין אבחון פעיל לשיוך השאלון");
+      return;
+    }
     try {
       setSendingInvite(true);
       const token = await currentUser.getIdToken();
       await schoolQuestionnaireService.sendInvite(
-        { childId, teacherEmail, teacherName },
+        {
+          childId,
+          diagnosisId: activeDiagnosis.id,
+          teacherEmail,
+          teacherName,
+        },
         token,
       );
       alert(`הקישור נשלח בהצלחה למייל של ${teacherName}`);
@@ -1635,6 +1652,7 @@ const ChildDetails = () => {
       return (
         <ParentQuestionnaire
           childId={childId}
+          diagnosisId={activeDiagnosis?.id}
           onSave={() => {
             setShowQuestionnaire(false);
             window.location.reload();

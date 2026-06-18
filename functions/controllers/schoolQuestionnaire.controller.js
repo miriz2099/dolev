@@ -3,10 +3,10 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const createSchoolInvitation = async (req, res) => {
   try {
-    const { childId, teacherEmail, teacherName } = req.body;
+    const { childId, diagnosisId, teacherEmail, teacherName } = req.body;
     const parentId = req.user?.uid; // וודאי שה-middleware מוסיף את user
 
-    if (!childId || !teacherEmail) {
+    if (!childId || !diagnosisId || !teacherEmail) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -15,9 +15,11 @@ const createSchoolInvitation = async (req, res) => {
     expiryDate.setDate(expiryDate.getDate() + 7);
 
     // 1. שמירה ב-DB קודם (כדי שלא נשלח מייל אם ה-DB נכשל)
+    // diagnosisId נשמר על ההזמנה כדי שהטוקן הציבורי יוכל לזהות את האבחון
     await db.collection("school_invitations").add({
       token,
       childId,
+      diagnosisId,
       parentId,
       teacherEmail,
       teacherName: teacherName || "מורה יקר/ה",
@@ -119,14 +121,16 @@ const checkInvitation = async (req, res) => {
 
     const invitationData = snapshot.docs[0].data();
     const childId = invitationData.childId;
+    const diagnosisId = invitationData.diagnosisId;
 
     // שליפת שם הילד
     const childDoc = await db.collection("children").doc(childId).get();
 
     // --- החלק החדש: חיפוש שאלון קיים למקרה של "החזרה לתיקון" ---
+    // מקושר לאבחון הספציפי (ולא לילד) כדי לא לערבב בין אבחונים שונים
     const existingSurveySnapshot = await db
       .collection("school_questionnaires")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .orderBy("submittedAt", "desc")
       .limit(1)
       .get();
@@ -180,10 +184,11 @@ const submitSchoolSurvey = async (req, res) => {
 
     const batch = db.batch();
 
-    // 3. יצירת השאלון - שימי לב לבדיקות ה-OR (||) למניעת undefined
+    // 3. יצירת השאלון - מקושר במפורש ל-diagnosisId שנשמר על ההזמנה
     const surveyRef = db.collection("school_questionnaires").doc();
     batch.set(surveyRef, {
       childId: invitationData.childId,
+      diagnosisId: invitationData.diagnosisId,
       teacherEmail: invitationData.teacherEmail,
       teacherName: invitationData.teacherName,
       formData: cleanFormData,
@@ -238,14 +243,15 @@ const saveSchoolDraft = async (req, res) => {
   }
 };
 
-const getSchoolSurveyByChild = async (req, res) => {
+// GET /school-questionnaires/diagnosis/:diagnosisId
+const getSchoolSurveyByDiagnosis = async (req, res) => {
   try {
-    const { childId } = req.params;
+    const { diagnosisId } = req.params;
 
-    // חיפוש השאלון הכי עדכני שנשלח עבור הילד הזה
+    // חיפוש השאלון הכי עדכני שנשלח עבור האבחון הזה
     const snapshot = await db
       .collection("school_questionnaires")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .orderBy("submittedAt", "desc")
       .limit(1)
       .get();
@@ -253,7 +259,7 @@ const getSchoolSurveyByChild = async (req, res) => {
     if (snapshot.empty) {
       return res
         .status(404)
-        .json({ message: "לא נמצא שאלון בית ספר עבור ילד זה" });
+        .json({ message: "לא נמצא שאלון בית ספר עבור אבחון זה" });
     }
 
     const surveyData = snapshot.docs[0].data();
@@ -265,12 +271,12 @@ const getSchoolSurveyByChild = async (req, res) => {
 };
 const resendSchoolInvitation = async (req, res) => {
   try {
-    const { childId } = req.body;
+    const { diagnosisId } = req.body;
 
     // 1. חיפוש ההזמנה הקיימת
     const snapshot = await db
       .collection("school_invitations")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .limit(1)
       .get();
 
@@ -375,17 +381,17 @@ const resendSchoolInvitation = async (req, res) => {
 // 2. איפוס מוחלט (מחיקת השאלון הקיים כדי שההורה יוכל לשלוח מחדש)
 const resetSchoolInvitation = async (req, res) => {
   try {
-    const { childId } = req.body;
+    const { diagnosisId } = req.body;
     const therapistId = req.user.uid; // המאבחן שמבצע את האיפוס
 
-    // 1. מחיקת ההזמנה והשאלון
+    // 1. מחיקת ההזמנה והשאלון של האבחון הספציפי
     const invSnapshot = await db
       .collection("school_invitations")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .get();
     const surveySnapshot = await db
       .collection("school_questionnaires")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .get();
 
     const batch = db.batch();
@@ -393,13 +399,20 @@ const resetSchoolInvitation = async (req, res) => {
     surveySnapshot.docs.forEach((doc) => batch.delete(doc.ref));
 
     // 2. שליחת הודעה פנימית להורה על האיפוס
-    // אנחנו צריכים את ה-parentId. נשיג אותו מההזמנה שנמחקה או מהילד
+    // נשיג את ה-parentId ואת ה-childId מההזמנה שנמחקה או מהאבחון
     let parentId = "";
+    let childId = "";
     if (!invSnapshot.empty) {
-      parentId = invSnapshot.docs[0].data().parentId;
+      const invData = invSnapshot.docs[0].data();
+      parentId = invData.parentId;
+      childId = invData.childId;
     } else {
-      const childDoc = await db.collection("children").doc(childId).get();
-      parentId = childDoc.data()?.parentId;
+      const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+      childId = diagDoc.data()?.childId || "";
+      if (childId) {
+        const childDoc = await db.collection("children").doc(childId).get();
+        parentId = childDoc.data()?.parentId;
+      }
     }
 
     if (parentId) {
@@ -423,12 +436,13 @@ const resetSchoolInvitation = async (req, res) => {
   }
 };
 
-const getInvitationByChild = async (req, res) => {
+// GET /school-questionnaires/invitation/:diagnosisId
+const getInvitationByDiagnosis = async (req, res) => {
   try {
-    const { childId } = req.params;
+    const { diagnosisId } = req.params;
     const snapshot = await db
       .collection("school_invitations")
-      .where("childId", "==", childId)
+      .where("diagnosisId", "==", diagnosisId)
       .limit(1)
       .get();
 
@@ -447,8 +461,8 @@ module.exports = {
   checkInvitation,
   submitSchoolSurvey,
   saveSchoolDraft,
-  getSchoolSurveyByChild,
+  getSchoolSurveyByDiagnosis,
   resendSchoolInvitation,
   resetSchoolInvitation,
-  getInvitationByChild,
+  getInvitationByDiagnosis,
 };

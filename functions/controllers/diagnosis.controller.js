@@ -1791,6 +1791,7 @@
 // };
 
 const { db } = require("../config/firebase");
+const { deleteDiagnosisCascade } = require("../helpers/cascade.helper");
 
 const SLOT_STEP_MINUTES = 30;
 
@@ -2179,15 +2180,22 @@ const getDiagnosesByChild = async (req, res) => {
 const updateQuestionnaireStatus = async (req, res) => {
   try {
     const { diagnosisId } = req.params;
-    const { childId, status } = req.body;
+    const { status } = req.body;
 
-    if (!status || !childId) {
-      return res.status(400).json({ error: "סטטוס או מזהה ילד חסרים" });
+    if (!status) {
+      return res.status(400).json({ error: "סטטוס חסר" });
     }
+
+    // childId נגזר מהאבחון עצמו ולא נסמך על הקלט מהלקוח
+    const diagRef = db.collection("diagnoses").doc(diagnosisId);
+    const diagDoc = await diagRef.get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const { childId } = diagDoc.data();
 
     const batch = db.batch();
 
-    const diagRef = db.collection("diagnoses").doc(diagnosisId);
     batch.update(diagRef, {
       parentQuestionnaireStatus: status,
       updatedAt: new Date().toISOString(),
@@ -2208,36 +2216,51 @@ const updateQuestionnaireStatus = async (req, res) => {
   }
 };
 
+// POST /diagnoses/:diagnosisId/questionnaires/submit
+// שמירת שאלון ההורים תחת אבחון ספציפי (Diagnosis-centric)
 const submitQuestionnaire = async (req, res) => {
   try {
-    const { childId, formData } = req.body;
+    const { diagnosisId } = req.params;
+    const { formData } = req.body;
     const parentId = req.user.uid;
+
+    if (!formData) {
+      return res.status(400).json({ error: "לא התקבלו נתוני שאלון" });
+    }
+
+    // אימות בעלות: שולפים את האבחון, גוזרים childId ומוודאים שהקורא הוא ההורה
+    const diagRef = db.collection("diagnoses").doc(diagnosisId);
+    const diagDoc = await diagRef.get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const { childId } = diagDoc.data();
+
+    const childDoc = await db.collection("children").doc(childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+    if (childDoc.data().parentId !== parentId) {
+      return res.status(403).json({ error: "אין הרשאה למלא שאלון עבור אבחון זה" });
+    }
 
     const batch = db.batch();
 
-    const questionnaireRef = db
-      .collection("parent_questionnaires")
-      .doc(childId);
+    // מסמך חדש לכל הגשה - מקושר במפורש ל-diagnosisId (לא דורס אבחונים קודמים)
+    const questionnaireRef = db.collection("parent_questionnaires").doc();
     batch.set(questionnaireRef, {
+      diagnosisId,
       childId,
       parentId,
       formData,
       submittedAt: new Date().toISOString(),
     });
 
-    const diagnosesSnapshot = await db
-      .collection("diagnoses")
-      .where("childId", "==", childId)
-      .where("status", "==", "בתהליך")
-      .limit(1)
-      .get();
-
-    if (!diagnosesSnapshot.empty) {
-      const diagDoc = diagnosesSnapshot.docs[0];
-      batch.update(diagDoc.ref, {
-        parentQuestionnaireStatus: "נשלח",
-      });
-    }
+    // עדכון האבחון הספציפי - בלי query, יש לנו את ה-ref ישירות
+    batch.update(diagRef, {
+      parentQuestionnaireStatus: "נשלח",
+      updatedAt: new Date().toISOString(),
+    });
 
     const childRef = db.collection("children").doc(childId);
     batch.update(childRef, { canFillQuestionnaire: false });
@@ -2250,19 +2273,45 @@ const submitQuestionnaire = async (req, res) => {
   }
 };
 
+// GET /diagnoses/:diagnosisId/parent-answers
+// שליפת שאלון ההורים של אבחון ספציפי
 const getParentQuestionnaireAnswers = async (req, res) => {
   try {
-    const { childId } = req.params;
-    const doc = await db.collection("parent_questionnaires").doc(childId).get();
+    const { diagnosisId } = req.params;
+    const userId = req.user.uid;
 
-    if (!doc.exists) {
-      return res
-        .status(404)
-        .json({ error: "טרם מולא שאלון הורים עבור ילד זה" });
+    // אימות בעלות דרך diagnosis -> child (הורה או מאבחן)
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const { childId } = diagDoc.data();
+
+    const childDoc = await db.collection("children").doc(childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+    const childData = childDoc.data();
+    if (childData.parentId !== userId && childData.therapistId !== userId) {
+      return res.status(403).json({ error: "אין הרשאה לצפות בשאלון זה" });
     }
 
-    res.status(200).json(doc.data());
+    const snapshot = await db
+      .collection("parent_questionnaires")
+      .where("diagnosisId", "==", diagnosisId)
+      .orderBy("submittedAt", "desc")
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res
+        .status(404)
+        .json({ error: "טרם מולא שאלון הורים עבור אבחון זה" });
+    }
+
+    res.status(200).json(snapshot.docs[0].data());
   } catch (error) {
+    console.error("Error in getParentQuestionnaireAnswers:", error);
     res.status(500).json({ error: "נכשלה שליפת השאלון" });
   }
 };
@@ -2822,6 +2871,30 @@ const cancelAssessmentAppointment = async (req, res) => {
 };
 
 // ============================================
+// מחיקת אבחון בודד + כל הטפסים שלו (מאבחן בעל האבחון)
+// DELETE /diagnoses/:diagnosisId
+// ============================================
+const deleteDiagnosis = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const therapistId = req.user.uid;
+
+    // אימות בעלות - רק המאבחן של האבחון יכול למחוק אותו
+    await verifyDiagnosisOwnership(diagnosisId, therapistId);
+
+    await deleteDiagnosisCascade(diagnosisId);
+
+    res.status(200).json({ message: "האבחון וכל הטפסים המקושרים נמחקו" });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error("Error in deleteDiagnosis:", error);
+    res.status(500).json({ error: "שגיאת שרת במחיקת האבחון" });
+  }
+};
+
+// ============================================
 // Module Exports
 // ============================================
 
@@ -2832,6 +2905,7 @@ module.exports = {
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,
+  deleteDiagnosis,
 
   // ניהול אבחונים נדרשים
   addRequiredAssessment,

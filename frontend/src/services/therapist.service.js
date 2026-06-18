@@ -78,9 +78,9 @@ const updateQuestionnaireStatus = async (
   );
 };
 
-const getParentAnswers = async (childId, token) => {
+const getParentAnswers = async (diagnosisId, token) => {
   return await fetchWithAuth(
-    `${BASE_URL}/diagnoses/parent-answers/${childId}`,
+    `${BASE_URL}/diagnoses/${diagnosisId}/parent-answers`,
     token,
   );
 };
@@ -166,6 +166,13 @@ const cancelAssessmentAppointment = async (
     { method: "DELETE" },
   );
 };
+
+// מחיקת אבחון בודד + כל הטפסים שלו
+const deleteDiagnosis = async (diagnosisId, token) => {
+  return await fetchWithAuth(`${BASE_URL}/diagnoses/${diagnosisId}`, token, {
+    method: "DELETE",
+  });
+};
 // ייצוא כל הפונקציות
 export default {
   getMyPatients,
@@ -183,4 +190,5 @@ export default {
   getAvailableSlots,
   bookAssessmentAppointment,
   cancelAssessmentAppointment,
+  deleteDiagnosis,
 };

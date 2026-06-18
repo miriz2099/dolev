@@ -44,6 +44,42 @@ export const deleteStaffMember = async (userId) => {
   return await response.json();
 };
 
+// שליפת כל ההורים (role=patient) עם הילדים שלהם - דרך ה-Backend (Admin SDK)
+export const getFamilies = async () => {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch(`${API_URL}/admin/families`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Error(data.error || "שגיאה בטעינת נתוני ההורים והמטופלים");
+  return data;
+};
+
+// מחיקת הורה + כל הילדים והנתונים שלו (cascade) + חשבון ה-Auth
+export const deleteParent = async (parentId) => {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch(`${API_URL}/admin/delete-parent/${parentId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "מחיקת ההורה נכשלה");
+  return data;
+};
+
+// מחיקת ילד + כל הנתונים המקושרים אליו (cascade)
+export const deleteChild = async (childId) => {
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch(`${API_URL}/children/${childId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "מחיקת הילד נכשלה");
+  return data;
+};
+
 export const updateStaffMember = async (userId, updateData) => {
   const token = await auth.currentUser.getIdToken();
   const response = await fetch(`${API_URL}/admin/update-staff/${userId}`, {

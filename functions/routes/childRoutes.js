@@ -9,6 +9,7 @@ const {
   getChildById,
   getTherapistPatients,
   getParentDetails,
+  deleteChild,
 } = require("../controllers/child.controller");
 
 const { verifyAdmin, verifyToken } = require("../middleware/auth.middleware");
@@ -20,5 +21,8 @@ router.get("/my-patients", verifyToken, getTherapistPatients);
 router.get("/:childId", verifyToken, getChildById);
 
 router.get("/parent-info/:parentId", verifyToken, getParentDetails);
+
+// 🆕 מחיקת ילד + כל הנתונים המקושרים (אדמין בלבד)
+router.delete("/:childId", verifyAdmin, deleteChild);
 
 module.exports = router;

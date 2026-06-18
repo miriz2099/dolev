@@ -1,6 +1,7 @@
 // backend/src/controllers/child.controller.js
 const { db } = require("../config/firebase");
 const { generateChildId } = require("../helpers/childId.helper");
+const { deleteChildCascade } = require("../helpers/cascade.helper");
 
 const createChild = async (req, res) => {
   try {
@@ -41,40 +42,6 @@ const createChild = async (req, res) => {
   }
 };
 
-// const createChild = async (req, res) => {
-//   try {
-//     const { firstName, lastName, idNumber, birthDate, parentId, therapistId } =
-//       req.body;
-
-//     // בדיקה בסיסית שכל השדות הגיעו
-//     if (!firstName || !lastName || !idNumber || !parentId || !therapistId) {
-//       return res.status(400).json({ error: "Missing required fields" });
-//     }
-
-//     // יצירת אובייקט הילד
-//     const newChild = {
-//       firstName,
-//       lastName,
-//       idNumber,
-//       birthDate,
-//       parentId, // ה-UID של ההורה מה-Dropdown
-//       therapistId, // ה-UID של המטפל מה-Dropdown
-//       canFillQuestionnaire: false,
-//       createdAt: new Date().toISOString(),
-//     };
-
-//     // שמירה ב-Collection חדש שנקרא children
-//     const docRef = await db.collection("children").add(newChild);
-
-//     res.status(201).json({
-//       message: "Child profile created successfully",
-//       id: docRef.id,
-//     });
-//   } catch (error) {
-//     console.error("Error creating child profile:", error);
-//     res.status(500).json({ error: "Failed to create child profile" });
-//   }
-// };
 
 const getParentChildren = async (req, res) => {
   console.log(">>> REQUEST RECEIVED FOR CHILD ID:====================="); // תוסיפי את זה
@@ -195,10 +162,24 @@ const getParentDetails = async (req, res) => {
   }
 };
 
-// עדכון הייצוא בסוף הקובץ
-module.exports = {
-  // ... שאר הפונקציות
-  getParentDetails,
+// מחיקת ילד + כל הנתונים המקושרים (אדמין בלבד)
+// DELETE /children/:childId
+const deleteChild = async (req, res) => {
+  try {
+    const { childId } = req.params;
+
+    const childDoc = await db.collection("children").doc(childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+
+    await deleteChildCascade(childId);
+
+    res.status(200).json({ message: "הילד וכל הנתונים המקושרים נמחקו" });
+  } catch (error) {
+    console.error("Error in deleteChild:", error);
+    res.status(500).json({ error: "שגיאת שרת במחיקת הילד" });
+  }
 };
 
 module.exports = {
@@ -207,4 +188,5 @@ module.exports = {
   getChildById,
   getTherapistPatients,
   getParentDetails,
+  deleteChild,
 };

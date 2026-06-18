@@ -64,7 +64,7 @@ const ApproveUsers = () => {
             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-sm"
           >
             <span className="text-lg">+</span>
-            הוספת מטופל (ילד)
+            הוספת מטופל (ילד\ה)
           </button>
         </div>
       </header>

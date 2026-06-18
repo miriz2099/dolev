@@ -15,6 +15,7 @@ const diagnosisRoutes = require("./routes/diagnosisRoutes");
 const schoolQuestionnaireRoutes = require("./routes/schoolQuestionnaire.routes");
 const diaryRoutes = require("./routes/diary.routes");
 const consentFormRoutes = require("./routes/consentForm.routes");
+const reportRoutes = require("./routes/report.routes");
 
 // אתחול Firebase Admin
 if (admin.apps.length === 0) {
@@ -36,6 +37,7 @@ app.use("/questionnaires", questionnaireRoutes);
 app.use("/messages", messageRoutes);
 app.use("/diagnoses", diagnosisRoutes);
 
+app.use("/reports", reportRoutes);
 app.use("/school-questionnaires", schoolQuestionnaireRoutes);
 app.use("/diary", diaryRoutes);
 app.use("/consent-forms", consentFormRoutes);

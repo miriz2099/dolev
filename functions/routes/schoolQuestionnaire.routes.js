@@ -5,10 +5,10 @@ const {
   checkInvitation,
   submitSchoolSurvey,
   saveSchoolDraft,
-  getSchoolSurveyByChild,
+  getSchoolSurveyByDiagnosis,
   resendSchoolInvitation,
   resetSchoolInvitation,
-  getInvitationByChild,
+  getInvitationByDiagnosis,
 } = require("../controllers/schoolQuestionnaire.controller");
 const { verifyToken } = require("../middleware/auth.middleware");
 
@@ -18,14 +18,14 @@ router.post("/invite", verifyToken, createSchoolInvitation);
 // 2. בדיקת הטוקן (מבוצע ע"י המורה - ציבורי)
 router.get("/check-invite/:token", checkInvitation);
 
-router.get("/invitation/:childId", verifyToken, getInvitationByChild);
+router.get("/invitation/:diagnosisId", verifyToken, getInvitationByDiagnosis);
 
 // 3. שליחת השאלון הסופי (מבוצע ע"י המורה - ציבורי - ללא verifyToken!)
 router.post("/submit/:token", submitSchoolSurvey);
 
 router.put("/draft/:token", saveSchoolDraft);
 
-router.get("/child/:childId", verifyToken, getSchoolSurveyByChild);
+router.get("/diagnosis/:diagnosisId", verifyToken, getSchoolSurveyByDiagnosis);
 
 router.post("/resend", verifyToken, resendSchoolInvitation);
 

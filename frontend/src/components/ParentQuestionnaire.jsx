@@ -75,7 +75,12 @@ const STEPS = [
   "סדר יום וחתימה",
 ];
 
-const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
+const ParentQuestionnaire = ({
+  childId = "default",
+  diagnosisId,
+  onSave,
+  onCancel,
+}) => {
   const formTopRef = React.useRef(null);
 
   const [step, setStep] = useState(1);
@@ -330,7 +335,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
 
   useEffect(() => {
     const loadDraft = async () => {
-      if (!childId || childId === "default") return;
+      if (!diagnosisId) return;
 
       try {
         setSaveStatus("טוען טיוטה...");
@@ -340,7 +345,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
         const token = await user.getIdToken();
 
         const response = await fetch(
-          `${API_URL}/questionnaires/draft/${childId}`,
+          `${API_URL}/questionnaires/draft/${diagnosisId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -362,10 +367,10 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
     };
 
     loadDraft();
-  }, [childId]);
+  }, [diagnosisId]);
 
   const saveDraft = async () => {
-    if (!childId) return;
+    if (!diagnosisId) return;
 
     try {
       setSaveStatus("שומר טיוטה...");
@@ -379,7 +384,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          childId: childId,
+          diagnosisId: diagnosisId,
           formData: formData,
         }),
       });
@@ -414,7 +419,7 @@ const ParentQuestionnaire = ({ childId = "default", onSave, onCancel }) => {
 
       // קריאה לפונקציה המאוחדת בסרביס
       // הפונקציה הזו בבאקנד תדאג גם לשמור את השאלון וגם לעדכן את הסטטוס ל"נשלח"
-      await childService.submitParentQuestionnaire(childId, formData, token);
+      await childService.submitParentQuestionnaire(diagnosisId, formData, token);
 
       setSaveStatus("השאלון נשלח בהצלחה!");
 

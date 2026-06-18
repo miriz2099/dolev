@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const {
-  getConsentFormByChild,
+  getConsentFormByDiagnosis,
   signByRegisteredParent,
   inviteSecondParent,
   getConsentFormByToken,
@@ -10,7 +10,7 @@ const {
 const { verifyToken } = require("../middleware/auth.middleware");
 
 // === Routes עם אימות (להורה הרשום והמאבחן) ===
-router.get("/by-child/:childId", verifyToken, getConsentFormByChild);
+router.get("/by-diagnosis/:diagnosisId", verifyToken, getConsentFormByDiagnosis);
 router.post("/:formId/sign-registered", verifyToken, signByRegisteredParent);
 router.post("/:formId/invite-second-parent", verifyToken, inviteSecondParent);
 

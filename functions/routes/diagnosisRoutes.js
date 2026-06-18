@@ -12,6 +12,7 @@ const {
   getAvailableSlots,
   bookAssessmentAppointment,
   cancelAssessmentAppointment,
+  deleteDiagnosis,
 } = require("../controllers/diagnosis.controller");
 const { verifyToken } = require("../middleware/auth.middleware");
 
@@ -19,9 +20,13 @@ const { verifyToken } = require("../middleware/auth.middleware");
 router.post("/create", verifyToken, createDiagnosis);
 router.get("/child/:childId", verifyToken, getDiagnosesByChild);
 router.put("/status/:diagnosisId", verifyToken, updateQuestionnaireStatus);
-router.post("/questionnaires/submit", verifyToken, submitQuestionnaire);
+router.post(
+  "/:diagnosisId/questionnaires/submit",
+  verifyToken,
+  submitQuestionnaire,
+);
 router.get(
-  "/parent-answers/:childId",
+  "/:diagnosisId/parent-answers",
   verifyToken,
   getParentQuestionnaireAnswers,
 );
@@ -55,4 +60,8 @@ router.delete(
   verifyToken,
   cancelAssessmentAppointment,
 );
+
+// 🆕 מחיקת אבחון בודד + כל הטפסים שלו (המאבחן בעל האבחון)
+router.delete("/:diagnosisId", verifyToken, deleteDiagnosis);
+
 module.exports = router;

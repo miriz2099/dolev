@@ -18,10 +18,10 @@ const fetchWithAuth = async (url, token, options = {}) => {
 };
 
 const consentFormService = {
-  // שליפת טופס לפי childId (הורה או מאבחן)
-  getByChild: async (childId, token) => {
+  // שליפת טופס לפי diagnosisId (הורה או מאבחן)
+  getByDiagnosis: async (diagnosisId, token) => {
     return await fetchWithAuth(
-      `${BASE_URL}/consent-forms/by-child/${childId}`,
+      `${BASE_URL}/consent-forms/by-diagnosis/${diagnosisId}`,
       token,
       { method: "GET" },
     );

@@ -9,7 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 import RequiredAssessmentsManager from "./RequiredAssessmentsManager";
 
-const DiagnosisView = ({ diagnosis, onBack, childName }) => {
+const DiagnosisView = ({ diagnosis, onBack, childName, onDeleted }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
 
   // ניהול צפייה בשאלונים
@@ -61,7 +61,7 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
       setLoading(true);
       const token = await currentUser.getIdToken();
       const data = await therapistService.getParentAnswers(
-        diagnosis.childId,
+        diagnosis.id,
         token,
       );
       setParentAnswers(data);
@@ -77,7 +77,7 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
       setSchoolLoading(true);
       const token = await currentUser.getIdToken();
       const data = await schoolQuestionnaireService.getSurveyForTherapist(
-        diagnosis.childId,
+        diagnosis.id,
         token,
       );
       setSchoolAnswers(data);
@@ -115,6 +115,26 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
     } catch (err) {
       console.error(err);
       alert("שגיאה בתהליך ההחזרה לתיקון.");
+    }
+  };
+
+  const handleDeleteDiagnosis = async () => {
+    if (
+      !window.confirm(
+        "למחוק את האבחון לצמיתות? פעולה זו תמחק את כל הטפסים, השאלונים, טופס ההסכמה והתורים המשויכים לאבחון זה. לא ניתן לשחזר.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const token = await currentUser.getIdToken();
+      await therapistService.deleteDiagnosis(diagnosis.id, token);
+      alert("האבחון נמחק בהצלחה");
+      if (onDeleted) onDeleted();
+      else if (onBack) onBack();
+    } catch (err) {
+      console.error("Error deleting diagnosis:", err);
+      alert("שגיאה במחיקת האבחון");
     }
   };
 
@@ -354,7 +374,7 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
                           const token = await currentUser.getIdToken();
                           // כאן אפשר להשתמש בפונקציית resend או פונקציה ייעודית לתיקון
                           await schoolQuestionnaireService.resendInvite(
-                            diagnosis.childId,
+                            diagnosis.id,
                             token,
                           );
                           alert("הודעה נשלחה למורה!");
@@ -374,7 +394,7 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
                         ) {
                           const token = await currentUser.getIdToken();
                           await schoolQuestionnaireService.resetInvite(
-                            diagnosis.childId,
+                            diagnosis.id,
                             token,
                           );
                           window.location.reload();
@@ -470,6 +490,13 @@ const DiagnosisView = ({ diagnosis, onBack, childName }) => {
             )}
           </div>
         </div>
+
+        <button
+          onClick={handleDeleteDiagnosis}
+          className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm"
+        >
+          🗑️ מחק אבחון
+        </button>
       </div>
 
       <div className="flex gap-2 mb-10 bg-gray-100/60 p-1.5 rounded-2xl w-fit">

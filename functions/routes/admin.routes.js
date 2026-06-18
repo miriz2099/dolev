@@ -7,5 +7,7 @@ const { verifyAdmin } = require("../middleware/auth.middleware");
 router.post("/create-staff", verifyAdmin, adminController.createStaff);
 router.delete("/delete-staff/:id", verifyAdmin, adminController.deleteStaff);
 router.put("/update-staff/:id", verifyAdmin, adminController.updateStaff);
+router.get("/families", verifyAdmin, adminController.getFamilies);
+router.delete("/delete-parent/:id", verifyAdmin, adminController.deleteParent);
 
 module.exports = router;

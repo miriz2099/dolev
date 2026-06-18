@@ -175,6 +175,7 @@ const MENU_ITEMS = {
     { label: "דוחות", path: "/checks" },
     { label: "יצירת משתמשים חדשים", path: "/approve-users" },
     { label: "ניהול צוות", path: "/staff" },
+    { label: "ניהול הורים ומטופלים", path: "/families" },
   ],
 };
 

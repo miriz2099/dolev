@@ -13,14 +13,14 @@ const fetchWithAuth = async (url, token, options = {}) => {
   return response.json();
 };
 
-// שליחת השאלון הסופי ועדכון הסטטוס ל"נשלח"
-const submitParentQuestionnaire = async (childId, formData, token) => {
+// שליחת השאלון הסופי ועדכון הסטטוס ל"נשלח" - מקושר לאבחון הספציפי
+const submitParentQuestionnaire = async (diagnosisId, formData, token) => {
   return await fetchWithAuth(
-    `${BASE_URL}/diagnoses/questionnaires/submit`,
+    `${BASE_URL}/diagnoses/${diagnosisId}/questionnaires/submit`,
     token,
     {
       method: "POST",
-      body: JSON.stringify({ childId, formData }),
+      body: JSON.stringify({ formData }),
     },
   );
 };
