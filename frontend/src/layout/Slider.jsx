@@ -165,14 +165,14 @@ const MENU_ITEMS = {
     { label: "תיבת הודעות", path: "/therapist/inbox" }, // עדכון נתיב לפי App.jsx
     { label: "לוח שנה", path: "/diary" },
     { label: "אבחונים", path: "/diagnos" },
-    { label: "דוחות", path: "/checks" },
+    { label: "דוחות", path: "/reports" },
   ],
   admin: [
     { label: "ניהול מטופלים", path: "/patients" },
     { label: "תיבת הודעות", path: "/therapist/inbox" }, // עדכון נתיב לפי App.jsx
     { label: "לוח שנה", path: "/diary" },
     { label: "אבחונים", path: "/diagnos" },
-    { label: "דוחות", path: "/checks" },
+    { label: "דוחות", path: "/reports" },
     { label: "יצירת משתמשים חדשים", path: "/approve-users" },
     { label: "ניהול צוות", path: "/staff" },
     { label: "ניהול הורים ומטופלים", path: "/families" },

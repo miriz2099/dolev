@@ -9,7 +9,7 @@ import Patients from "./pages/Patients";
 import Pay from "./pages/Pay";
 import Type from "./pages/Type";
 import Diary from "./pages/Diary";
-import Checks from "./pages/Checks";
+import Reports from "./pages/Reports";
 import Diagnos from "./pages/Diagnos";
 import Isur from "./pages/Isur";
 import TherapistInbox from "./pages/TherapistInbox";
@@ -160,12 +160,12 @@ function App() {
             }
           />
           <Route
-            path="checks"
+           path="/reports"
             element={
-              <ProtectedRoute allowedRoles={["therapist", "admin", "patient"]}>
-                <Checks />
+            <ProtectedRoute allowedRoles={["therapist", "admin"]}>
+              <Reports />
               </ProtectedRoute>
-            }
+            } 
           />
 
           {/* --- נתיבים לאדמין בלבד --- */}

@@ -332,6 +332,7 @@ import DiagnosisList from "../components/DiagnosisList";
 import DiagnosisView from "../components/DiagnosisView";
 import ConsentFormViewer from "../components/ConsentFormViewer";
 import consentFormService from "../services/consentForm.service";
+import ReportForm from "../components/ReportForm";
 
 const DiagnosisDetails = () => {
   const { childId } = useParams();
@@ -428,8 +429,15 @@ const DiagnosisDetails = () => {
     }
   };
 
+  // useEffect(() => {
+  //   if (activeTab === "diagnoses") {
+  //     loadDiagnoses();
+  //     setSelectedDiagnosis(null);
+  //   }
+  // }, [activeTab]);
+
   useEffect(() => {
-    if (activeTab === "diagnoses") {
+    if (activeTab === "diagnoses" || activeTab === "reports") {
       loadDiagnoses();
       setSelectedDiagnosis(null);
     }
@@ -626,6 +634,61 @@ const DiagnosisDetails = () => {
           </div>
         );
 
+        case "reports":
+        return (
+          <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[450px] text-right animate-fadeIn font-sans">
+            {diagnoses.length === 0 ? (
+              <div className="text-center py-20">
+                <p className="text-gray-400 text-lg">
+                  יש לפתוח אבחון לפני יצירת דוח
+                </p>
+              </div>
+            ) : !selectedDiagnosis ? (
+              <>
+                <h2 className="text-3xl font-bold text-gray-800 mb-6 pb-6 border-b border-gray-100">
+                  דוחות
+                </h2>
+                <p className="text-gray-500 mb-4">בחרי אבחון לכתיבת דוח:</p>
+                <div className="flex flex-col gap-3">
+                  {diagnoses.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setSelectedDiagnosis(d)}
+                      className="flex justify-between items-center p-4 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition text-right"
+                    >
+                      <div>
+                        <p className="font-bold text-gray-800">
+                          אבחון מתאריך{" "}
+                          {new Date(d.createdAt).toLocaleDateString("he-IL")}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          סטטוס: {d.status || "פעיל"}
+                        </p>
+                      </div>
+                      <span className="text-blue-600 font-bold">
+                        כתיבת דוח ←
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div>
+                <button
+                  onClick={() => setSelectedDiagnosis(null)}
+                  className="text-gray-400 hover:text-blue-600 font-medium flex items-center gap-2 mb-4"
+                >
+                  <span className="text-xl">→</span> חזרה לרשימת אבחונים
+                </button>
+                <ReportForm
+                  diagnosisId={selectedDiagnosis.id}
+                  childData={childData}
+                  onClose={() => setSelectedDiagnosis(null)}
+                />
+              </div>
+            )}
+          </div>
+        );
       case "parents":
         return (
           <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[450px] text-right animate-fadeIn font-sans">
@@ -708,6 +771,7 @@ const DiagnosisDetails = () => {
           {[
             { id: "childInfo", label: "פרטי הילד" },
             { id: "diagnoses", label: "אבחונים" },
+            { id: "reports", label: "דוחות" },
             { id: "parents", label: "פרטי הורים + הודעה" },
           ].map((tab) => (
             <button
