@@ -15,10 +15,10 @@ const {
 } = require("../controllers/report.controller");
 
 // כל ה-routes דורשים אימות (מטפל/אדמין)
-router.get("/diagnosis/:diagnosisId", verifyToken, getReportByDiagnosis);
-router.post("/draft", verifyToken, saveReportDraft);
-router.post("/submit", verifyToken, submitReport);
-router.get("/", verifyToken, listReports);
-router.get("/:reportId", verifyToken, getReportById);
+// router.get("/diagnosis/:diagnosisId", verifyToken, getReportByDiagnosis);
+// router.post("/draft", verifyToken, saveReportDraft);
+// router.post("/submit", verifyToken, submitReport);
+// router.get("/", verifyToken, listReports);
+// router.get("/:reportId", verifyToken, getReportById);
 
 module.exports = router;
