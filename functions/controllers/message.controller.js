@@ -10,6 +10,28 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "Missing fields" });
     }
 
+    // בדיקת הרשאה: האם השולח הוא הורה או מטפל של הילד?
+    const childDoc = await db.collection("children").doc(childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+
+    const childData = childDoc.data();
+    if (childData.parentId !== senderId && childData.therapistId !== senderId) {
+      return res.status(403).json({ error: "אין הרשאה לשלוח הודעה עבור ילד זה" });
+    }
+
+    // בדיקה שהנמען הוא הצד השני (הורה↔מטפל)
+    const validReceiver =
+      (childData.parentId === senderId && childData.therapistId === receiverId) ||
+      (childData.therapistId === senderId && childData.parentId === receiverId);
+
+    if (!validReceiver) {
+      return res.status(403).json({ error: "הנמען אינו קשור לילד זה" });
+    }
+
+    
+
     const messageData = {
       senderId,
       receiverId,
@@ -116,46 +138,107 @@ const markMessagesAsRead = async (req, res) => {
 
 // functions/controllers/message.controller.js
 
+// const getMyInbox = async (req, res) => {
+//   try {
+//     const myId = req.user.uid; // ה-ID של המאבחנת מהטוקן
+
+//     // 1. שליפת כל ההודעות שקשורות למאבחנת (או כשולחת או כנמענת)
+//     // אנחנו שולפים את ההודעות וממיינים לפי תאריך יורד כדי לקבל את האחרונות קודם
+//     const snapshot = await db
+//       .collection("messages")
+//       .orderBy("createdAt", "desc")
+//       .get();
+
+//     const conversationsMap = {};
+
+//     snapshot.forEach((doc) => {
+//       const data = doc.data();
+
+//       // סינון: האם אני צד בשיחה הזו?
+//       if (data.senderId === myId || data.receiverId === myId) {
+//         // קיבוץ לפי childId: רק ההודעה האחרונה מכל שיחה תיכנס ל-Map
+//         if (!conversationsMap[data.childId]) {
+//           conversationsMap[data.childId] = {
+//             id: doc.id,
+//             ...data,
+//             // מונה הודעות שלא נקראו (רק אם אני הנמען והן מסומנות כ-false)
+//             unreadCount:
+//               data.read === false && data.receiverId === myId ? 1 : 0,
+//           };
+//         } else {
+//           // אם כבר קיימת הודעה (חדשה יותר), רק נעדכן את מונה ה-unread
+//           if (data.read === false && data.receiverId === myId) {
+//             conversationsMap[data.childId].unreadCount++;
+//           }
+//         }
+//       }
+//     });
+//     const conversations = Object.values(conversationsMap);
+
+//     // 2. הבאת שמות הילדים (Manual Join)
+//     const results = await Promise.all(
+//       conversations.map(async (conv) => {
+//         const childDoc = await db
+//           .collection("children")
+//           .doc(conv.childId)
+//           .get();
+//         const childData = childDoc.exists ? childDoc.data() : null;
+//         return {
+//           ...conv,
+//           childName: childData
+//             ? `${childData.firstName} ${childData.lastName}`
+//             : "מטופל לא נמצא",
+//         };
+//       }),
+//     );
+
+//     res.status(200).json(results);
+//   } catch (error) {
+//     console.error("Error fetching conversations:", error);
+//     res.status(500).json({ error: "Failed to fetch conversations" });
+//   }
+// };
+
 const getMyInbox = async (req, res) => {
   try {
-    const myId = req.user.uid; // ה-ID של המאבחנת מהטוקן
+    const myId = req.user.uid;
 
-    // 1. שליפת כל ההודעות שקשורות למאבחנת (או כשולחת או כנמענת)
-    // אנחנו שולפים את ההודעות וממיינים לפי תאריך יורד כדי לקבל את האחרונות קודם
-    const snapshot = await db
+    // שאילתה 1: הודעות שנשלחו אליי
+    const receivedSnapshot = await db
       .collection("messages")
+      .where("receiverId", "==", myId)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    // שאילתה 2: הודעות ששלחתי
+    const sentSnapshot = await db
+      .collection("messages")
+      .where("senderId", "==", myId)
       .orderBy("createdAt", "desc")
       .get();
 
     const conversationsMap = {};
-
-    snapshot.forEach((doc) => {
+    const processDoc = (doc) => {
       const data = doc.data();
-
-      // סינון: האם אני צד בשיחה הזו?
-      if (data.senderId === myId || data.receiverId === myId) {
-        // קיבוץ לפי childId: רק ההודעה האחרונה מכל שיחה תיכנס ל-Map
-        if (!conversationsMap[data.childId]) {
-          conversationsMap[data.childId] = {
-            id: doc.id,
-            ...data,
-            // מונה הודעות שלא נקראו (רק אם אני הנמען והן מסומנות כ-false)
-            unreadCount:
-              data.read === false && data.receiverId === myId ? 1 : 0,
-          };
-        } else {
-          // אם כבר קיימת הודעה (חדשה יותר), רק נעדכן את מונה ה-unread
-          if (data.read === false && data.receiverId === myId) {
-            conversationsMap[data.childId].unreadCount++;
-          }
+      if (!conversationsMap[data.childId]) {
+        conversationsMap[data.childId] = {
+          id: doc.id,
+          ...data,
+          unreadCount:
+            data.read === false && data.receiverId === myId ? 1 : 0,
+        };
+      } else {
+        if (data.read === false && data.receiverId === myId) {
+          conversationsMap[data.childId].unreadCount++;
         }
       }
-    });
+    };
+
+    receivedSnapshot.forEach(processDoc);
+    sentSnapshot.forEach(processDoc);
 
     const conversations = Object.values(conversationsMap);
-
-    // 2. הבאת שמות הילדים (Manual Join)
-    const results = await Promise.all(
+     const results = await Promise.all(
       conversations.map(async (conv) => {
         const childDoc = await db
           .collection("children")
@@ -168,7 +251,7 @@ const getMyInbox = async (req, res) => {
             ? `${childData.firstName} ${childData.lastName}`
             : "מטופל לא נמצא",
         };
-      }),
+      })
     );
 
     res.status(200).json(results);

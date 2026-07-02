@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-// ⚠️ התאימי את שם/נתיב המידלוור לזה שכבר קיים אצלך
+
 // (תסתכלי איך message.routes.js או diary.routes.js מייבאים אותו)
 const verifyToken = require("../middleware/auth.middleware");
 

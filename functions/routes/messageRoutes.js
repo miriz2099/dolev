@@ -9,8 +9,9 @@ const {
   getMyInbox,
 } = require("../controllers/message.controller");
 const { verifyToken } = require("../middleware/auth.middleware");
+const { messageLimiter } = require("../middleware/rateLimiter.middleware");
 
-router.post("/send", verifyToken, sendMessage);
+router.post("/send", verifyToken, messageLimiter, sendMessage);
 router.get("/child/:childId", verifyToken, getMyMessagesForChild);
 router.delete("/:messageId", verifyToken, deleteMessage);
 router.put("/mark-as-read/:childId", verifyToken, markMessagesAsRead);

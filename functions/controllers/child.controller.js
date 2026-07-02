@@ -139,6 +139,23 @@ const getTherapistPatients = async (req, res) => {
 const getParentDetails = async (req, res) => {
   try {
     const { parentId } = req.params;
+    const requesterId = req.user.uid;
+
+    const childrenSnapshot = await db
+      .collection("children")
+      .where("parentId", "==", parentId)
+      .where("therapistId", "==", requesterId)
+      .limit(1)
+      .get();
+
+    // אחרי שליפת childrenSnapshot
+if (childrenSnapshot.empty) {
+  // בדיקה אם המבקש הוא אדמין
+  const requesterDoc = await db.collection("users").doc(requesterId).get();
+  if (!requesterDoc.exists || requesterDoc.data().role !== "admin") {
+    return res.status(403).json({ error: "אין הרשאה לצפות בפרטי הורה זה" });
+  }
+}
 
     // שליפת מסמך המשתמש (ההורה) מ-Collection users
     const parentDoc = await db.collection("users").doc(parentId).get();
