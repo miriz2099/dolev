@@ -184,11 +184,7 @@ const SectionRenderer = ({ section, data, onChange }) => {
 
     case "scoresTable":
       return (
-        <ScoresTable
-          section={section}
-          data={data || {}}
-          onChange={onChange}
-        />
+        <ScoresTable section={section} data={data || {}} onChange={onChange} />
       );
 
     case "group":
@@ -251,7 +247,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [activeSection, setActiveSection] = useState(
-    REPORT_STRUCTURE[0]?.id || ""
+    REPORT_STRUCTURE[0]?.id || "",
   );
   const autoSaveTimer = useRef(null);
 
@@ -281,7 +277,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
               const qaToken = await currentUser.getIdToken();
               const qaRes = await fetch(
                 `${import.meta.env.VITE_API_URL}/diagnoses/${diagnosisId}/parent-answers`,
-                { headers: { Authorization: `Bearer ${qaToken}` } }
+                { headers: { Authorization: `Bearer ${qaToken}` } },
               );
               if (qaRes.ok) {
                 const qa = await qaRes.json();
@@ -346,8 +342,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
 
   // ---- הגשה סופית ----
   const handleSubmit = async () => {
-    if (!window.confirm("האם להגיש את הדוח? לא ניתן לערוך לאחר ההגשה."))
-      return;
+    if (!window.confirm("האם להגיש את הדוח? לא ניתן לערוך לאחר ההגשה.")) return;
     try {
       setSaving(true);
       const token = await currentUser.getIdToken();
@@ -358,6 +353,50 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
     } catch (err) {
       console.error("Error submitting report:", err);
       alert("שגיאה בהגשת הדוח");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---- יצוא דוח ל-PDF באמצעות הסרביס ----
+  const handleExportPDF = async () => {
+    try {
+      setSaving(true);
+      const token = await currentUser.getIdToken();
+
+      // קריאה ישירות לסרביס המעודכן שלנו
+      const blob = await reportService.exportPDF(diagnosisId, token);
+
+      // יצירת לינק זמני להורדה בדפדפן
+      const link = document.createElement("a");
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `Report_${childData?.firstName || "Child"}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("שגיאה בהפקת קובץ PDF");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---- פתיחה מחדש לעריכה באמצעות הסרביס ----
+  const handleUnlockReport = async () => {
+    if (!window.confirm("האם את בטוחה שברצונך לפתוח את הדוח מחדש לעריכה?"))
+      return;
+    try {
+      setSaving(true);
+      const token = await currentUser.getIdToken();
+
+      // קריאה לסרביס
+      await reportService.unlock(diagnosisId, token);
+
+      setStatus("draft"); // החזרת מצב הטופס באפליקציה לטיוטה פתוחה
+      alert("הדוח נפתח מחדש לעריכה בהצלחה");
+    } catch (err) {
+      console.error("Error unlocking report:", err);
+      alert(err.message || "שגיאה בפתיחת הדוח לעריכה");
     } finally {
       setSaving(false);
     }
@@ -415,15 +454,15 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
                   status === "completed"
                     ? "bg-green-100 text-green-700"
                     : status === "draft"
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-gray-100 text-gray-500"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-gray-100 text-gray-500"
                 }`}
               >
                 {status === "completed"
                   ? "הושלם"
                   : status === "draft"
-                  ? "טיוטה"
-                  : "חדש"}
+                    ? "טיוטה"
+                    : "חדש"}
               </span>
             </div>
           </div>
@@ -446,10 +485,12 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
         ))}
 
         {/* כפתורים */}
-       {!isCompleted && (
+        {/* כפתורים כאשר הדוח עדיין בעריכה */}
+        {!isCompleted && (
           <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 p-3 flex gap-2 justify-center z-50">
             {onClose && (
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2 rounded-lg border border-gray-300 text-gray-500 text-sm hover:bg-gray-50 transition"
               >
@@ -457,6 +498,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
               </button>
             )}
             <button
+              type="button"
               onClick={() => handleSaveDraft(false)}
               disabled={saving}
               className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-bold hover:bg-yellow-600 transition disabled:opacity-50"
@@ -464,6 +506,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
               {saving ? "שומר..." : "💾 שמור טיוטה"}
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={saving}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
@@ -473,9 +516,42 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
           </div>
         )}
 
+        {/* כפתורים וסטטוס כאשר הדוח כבר הוגש והושלם */}
         {isCompleted && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 text-center text-green-700 font-bold">
-            הדוח הוגש ואינו ניתן לעריכה
+          <div className="bg-white rounded-xl shadow p-6 mb-8 border border-green-200">
+            <div className="bg-green-50 rounded-xl p-4 mb-4 text-center text-green-700 font-bold">
+              ✓ הדוח הוגש בהצלחה ומאובטח במערכת
+            </div>
+
+            <div className="flex gap-4 justify-center">
+              <button
+                type="button"
+                onClick={handleUnlockReport}
+                disabled={saving}
+                className="px-5 py-2.5 rounded-lg bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                🔓 פתיחה מחדש לעריכה
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                disabled={saving}
+                className="px-5 py-2.5 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                📄 יצוא לקובץ PDF
+              </button>
+
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-50 transition"
+                >
+                  סגור וצא
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

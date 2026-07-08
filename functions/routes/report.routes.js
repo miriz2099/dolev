@@ -2,7 +2,6 @@
 // const express = require("express");
 // const router = express.Router();
 
-
 // // (תסתכלי איך message.routes.js או diary.routes.js מייבאים אותו)
 // const verifyToken = require("../middleware/auth.middleware");
 
@@ -23,7 +22,6 @@
 
 // module.exports = router;
 
-
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/auth.middleware");
@@ -34,6 +32,8 @@ const {
   submitReport,
   listReports,
   getReportById,
+  openReportForEditing,
+  exportReportToPDF,
 } = require("../controllers/report.controller");
 
 router.get("/diagnosis/:diagnosisId", verifyToken, getReportByDiagnosis);
@@ -41,5 +41,7 @@ router.post("/draft", verifyToken, saveReportDraft);
 router.post("/submit", verifyToken, submitReport);
 router.get("/", verifyToken, listReports);
 router.get("/:reportId", verifyToken, getReportById);
+router.put("/:reportId/unlock", verifyToken, openReportForEditing);
+router.get("/:reportId/export", verifyToken, exportReportToPDF);
 
 module.exports = router;

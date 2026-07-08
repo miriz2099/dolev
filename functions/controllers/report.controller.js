@@ -1,5 +1,7 @@
 // functions/controllers/report.controller.js
 const { db } = require("../config/firebase");
+const aiService = require("../services/ai.service");
+const pdfService = require("../services/pdf.service");
 
 /**
  * Helper: בדיקת הרשאת גישה לאבחון.
@@ -33,7 +35,8 @@ const getReportByDiagnosis = async (req, res) => {
     const { diagnosisId } = req.params;
 
     const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
-    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.ok)
+      return res.status(access.code).json({ error: access.error });
 
     const snapshot = await db
       .collection("reports")
@@ -63,7 +66,8 @@ const saveReportDraft = async (req, res) => {
     }
 
     const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
-    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.ok)
+      return res.status(access.code).json({ error: access.error });
 
     const now = new Date().toISOString();
     const snapshot = await db
@@ -105,7 +109,8 @@ const submitReport = async (req, res) => {
     if (!diagnosisId) return res.status(400).json({ error: "חסר diagnosisId" });
 
     const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
-    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.ok)
+      return res.status(access.code).json({ error: access.error });
 
     const now = new Date().toISOString();
     const snapshot = await db
@@ -129,7 +134,9 @@ const submitReport = async (req, res) => {
         createdAt: now,
         ...updatePayload,
       });
-      return res.status(201).json({ id: docRef.id, message: "הדוח הושלם ונשמר" });
+      return res
+        .status(201)
+        .json({ id: docRef.id, message: "הדוח הושלם ונשמר" });
     }
 
     await snapshot.docs[0].ref.update(updatePayload);
@@ -163,7 +170,10 @@ const listReports = async (req, res) => {
         let childIdNumber = "";
 
         if (data.childId) {
-          const childDoc = await db.collection("children").doc(data.childId).get();
+          const childDoc = await db
+            .collection("children")
+            .doc(data.childId)
+            .get();
           if (childDoc.exists) {
             const c = childDoc.data();
             childName = `${c.firstName} ${c.lastName}`;
@@ -180,11 +190,13 @@ const listReports = async (req, res) => {
           childName,
           childIdNumber,
         };
-      })
+      }),
     );
 
     // מיון לפי עדכון אחרון (חדש -> ישן)
-    reports.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+    reports.sort((a, b) =>
+      (b.updatedAt || "").localeCompare(a.updatedAt || ""),
+    );
 
     res.status(200).json(reports);
   } catch (error) {
@@ -206,7 +218,8 @@ const getReportById = async (req, res) => {
 
     // אימות בעלות דרך האבחון המקושר
     const access = await getDiagnosisAccess(req.user.uid, data.diagnosisId);
-    if (!access.ok) return res.status(access.code).json({ error: access.error });
+    if (!access.ok)
+      return res.status(access.code).json({ error: access.error });
 
     res.status(200).json({ id: doc.id, ...data });
   } catch (error) {
@@ -215,10 +228,152 @@ const getReportById = async (req, res) => {
   }
 };
 
+const generateReportSection = async (req, res) => {
+  try {
+    const { diagnosticId, sectionType, rawText } = req.body;
+
+    // 1. קריאה לשירות ה-AI (ה-Controller לא יודע איזה מודל רץ מאחורי הקלעים!)
+    const formattedText = await aiService.formatAssociativeNotes(
+      rawText,
+      sectionType,
+    );
+
+    // 2. שמירת התוצאה ב-Firestore
+    // await db.collection('diagnostics').doc(diagnosticId).update({ ... });
+
+    return res.status(200).json({ success: true, formattedText });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+const downloadReportPDF = async (req, res) => {
+  try {
+    // Security check (Example: Only therapists or admins can export reports)
+    if (req.user.role !== "therapist" && req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized access to medical records." });
+    }
+
+    const { reportId } = req.params;
+
+    // 1. Fetch data from Firestore
+    const reportDoc = await db.collection("reports").doc(reportId).get();
+    if (!reportDoc.exists) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    const reportData = reportDoc.data();
+
+    // 2. Generate PDF via our decoupled service
+    const cleanHTMLResult = await pdfService.createDiagnosticPDF(reportData);
+
+    // 3. Respond to Frontend
+    res.setHeader("Content-Type", "text/html"); // בהמשך ישונה ל-application/pdf
+    return res.status(200).send(cleanHTMLResult);
+  } catch (error) {
+    console.error("PDF Generation Error:", error);
+    return res.status(500).json({ error: "Failed to generate PDF report" });
+  }
+};
+
+const openReportForEditing = async (req, res) => {
+  try {
+    // משנים את שם המשתנה ל-diagnosisId כדי שיתאים למה שמגיע מה-Frontend
+    const { reportId: diagnosisId } = req.params;
+
+    // מחפשים את הדוח שמקושר ל-diagnosisId הזה
+    const snapshot = await db
+      .collection("reports")
+      .where("diagnosisId", "==", diagnosisId)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ error: "הדוח לא נמצא עבור אבחון זה" });
+    }
+
+    const reportDoc = snapshot.docs[0];
+    const reportData = reportDoc.data();
+
+    // HIPAA/Security Check: אימות בעלות או אדמין
+    if (req.user.role !== "admin" && reportData.therapistId !== req.user.uid) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to edit this report" });
+    }
+
+    // מעדכנים את הסטטוס ל-in_progress באמצעות הרפרנס של המסמך שנמצא
+    await reportDoc.ref.update({
+      status: "in_progress",
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Report opened for editing successfully",
+    });
+  } catch (error) {
+    console.error("Error opening report:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const exportReportToPDF = async (req, res) => {
+  try {
+    // משנים את שם המשתנה ל-diagnosisId
+    const { reportId: diagnosisId } = req.params;
+
+    // מחפשים את הדוח שמקושר ל-diagnosisId הזה
+    const snapshot = await db
+      .collection("reports")
+      .where("diagnosisId", "==", diagnosisId)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ error: "הדוח לא נמצא עבור אבחון זה" });
+    }
+
+    const reportDoc = snapshot.docs[0];
+    const reportData = reportDoc.data();
+
+    // Security Check
+    if (req.user.role !== "admin" && reportData.therapistId !== req.user.uid) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to export this report" });
+    }
+
+    // שולחים לשירות ה-PDF את ה-formData שנמצא בתוך ה-reportData
+    // שימו לב: אם קובץ ה-pdf.service שלכן מצפה לתוכן של ה-Form, מומלץ להעביר את reportData.formData
+    const pdfBuffer = await pdfService.generatePDFBuffer(
+      reportData.formData || reportData,
+    );
+
+    // הגדרת Headers לקובץ PDF
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=report_${diagnosisId}.pdf`,
+    );
+
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    console.error("Error exporting PDF:", error);
+    return res.status(500).json({ error: "Failed to generate PDF" });
+  }
+};
+
 module.exports = {
   getReportByDiagnosis,
   saveReportDraft,
   submitReport,
   listReports,
+  generateReportSection,
   getReportById,
+  downloadReportPDF,
+  openReportForEditing,
+  exportReportToPDF,
 };

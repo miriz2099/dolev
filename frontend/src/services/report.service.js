@@ -36,12 +36,29 @@ const reportService = {
     }),
 
   // רשימת כל הדוחות (לדף דוחות בסיידבר)
-  listAll: (token) =>
-    fetchWithAuth(`${BASE_URL}/reports`, token),
+  listAll: (token) => fetchWithAuth(`${BASE_URL}/reports`, token),
 
   // שליפת דוח בודד
   getById: (reportId, token) =>
     fetchWithAuth(`${BASE_URL}/reports/${reportId}`, token),
+
+  // פתיחה מחדש לעריכה (משתמש ב-PUT)
+  unlock: (reportId, token) =>
+    fetchWithAuth(`${BASE_URL}/reports/${reportId}/unlock`, token, {
+      method: "PUT",
+    }),
+
+  // ייצוא ל-PDF (מטפל בקובץ בינארי - Blob)
+  exportPDF: async (reportId, token) => {
+    const response = await fetch(`${BASE_URL}/reports/${reportId}/export`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Failed to export PDF");
+    return response.blob(); // מחזיר blob ולא json!
+  },
 };
 
 export default reportService;
