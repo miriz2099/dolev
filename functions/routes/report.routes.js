@@ -25,7 +25,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/auth.middleware");
-
+const { aiLimiter } = require("../middleware/rateLimiter.middleware");
 const {
   getReportByDiagnosis,
   saveReportDraft,
@@ -34,12 +34,14 @@ const {
   getReportById,
   openReportForEditing,
   exportReportToPDF,
+  generateReportSection,
 } = require("../controllers/report.controller");
 
 router.get("/diagnosis/:diagnosisId", verifyToken, getReportByDiagnosis);
 router.post("/draft", verifyToken, saveReportDraft);
 router.post("/submit", verifyToken, submitReport);
 router.get("/", verifyToken, listReports);
+router.post("/ai/rephrase", verifyToken, aiLimiter, generateReportSection);
 router.get("/:reportId", verifyToken, getReportById);
 router.put("/:reportId/unlock", verifyToken, openReportForEditing);
 router.get("/:reportId/export", verifyToken, exportReportToPDF);

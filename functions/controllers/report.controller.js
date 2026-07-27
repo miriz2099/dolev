@@ -1,6 +1,7 @@
 // functions/controllers/report.controller.js
 const { db } = require("../config/firebase");
-const aiService = require("../services/ai.service");
+const { rephraseSection } = require("../services/ai");
+const { toUserMessage } = require("../services/ai/errors");
 const pdfService = require("../services/pdf.service");
 
 /**
@@ -228,22 +229,86 @@ const getReportById = async (req, res) => {
   }
 };
 
+// POST /reports/ai/rephrase
+// מנסחת מחדש טקסט אסוציאטיבי של המאבחנת לניסוח קליני.
+// ⚠️ התוצאה מוחזרת בלבד ואינה נשמרת - המאבחנת חייבת לאשר אותה.
 const generateReportSection = async (req, res) => {
   try {
-    const { diagnosticId, sectionType, rawText } = req.body;
+    const { diagnosisId, sectionId, rawText } = req.body;
 
-    // 1. קריאה לשירות ה-AI (ה-Controller לא יודע איזה מודל רץ מאחורי הקלעים!)
-    const formattedText = await aiService.formatAssociativeNotes(
-      rawText,
-      sectionType,
-    );
+    // --- ולידציה ---
+    if (!diagnosisId || !sectionId || typeof rawText !== "string") {
+      return res
+        .status(400)
+        .json({ error: "חסרים שדות חובה: diagnosisId, sectionId, rawText" });
+    }
+    if (!rawText.trim()) {
+      return res.status(400).json({ error: "אין טקסט לניסוח" });
+    }
+    if (rawText.length > 5000) {
+      return res
+        .status(400)
+        .json({ error: "הטקסט ארוך מדי לניסוח (מקסימום 5000 תווים)" });
+    }
 
-    // 2. שמירת התוצאה ב-Firestore
-    // await db.collection('diagnostics').doc(diagnosticId).update({ ... });
+    // --- הרשאה: רק המאבחן בעל האבחון או אדמין ---
+    const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
 
-    return res.status(200).json({ success: true, formattedText });
+    // --- טעינת פרטי הילד וההורה עבור שכבת ה-de-identification ---
+    let child = {};
+    let parent = {};
+
+    const childId = access.diagnosis.childId;
+    if (childId) {
+      const childDoc = await db.collection("children").doc(childId).get();
+      if (childDoc.exists) {
+        child = childDoc.data();
+
+        if (child.parentId) {
+          const parentDoc = await db
+            .collection("users")
+            .doc(child.parentId)
+            .get();
+          if (parentDoc.exists) parent = parentDoc.data();
+        }
+      }
+    }
+
+    // --- הקריאה בפועל ---
+    const result = await rephraseSection({ sectionId, rawText, child, parent });
+
+    // --- Audit trail (HIPAA): מי, מתי, על איזה מקטע.
+    //     שימי לב: לא שומרים את תוכן הטקסט עצמו, רק מטא-דאטה. ---
+    await db
+      .collection("ai_audit")
+      .add({
+        userId: req.user.uid,
+        diagnosisId,
+        childId: childId || null,
+        sectionId,
+        provider: result.provider,
+        model: result.model,
+        inputChars: rawText.length,
+        usage: result.usage || null,
+        createdAt: new Date().toISOString(),
+      })
+      .catch((err) => console.error("[audit] failed to log AI usage:", err));
+
+    return res.status(200).json({
+      text: result.text,
+      provider: result.provider,
+      model: result.model,
+    });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("Error in generateReportSection:", error);
+
+    // AiError נושא status מנורמל; כל השאר -> 500.
+    // ההודעה ללקוח היא תמיד הגרסה הידידותית, לעולם לא הודעת הספק הגולמית.
+    const status = error?.name === "AiError" ? error.status : 500;
+    return res.status(status).json({ error: toUserMessage(error) });
   }
 };
 
