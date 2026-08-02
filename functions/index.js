@@ -65,4 +65,6 @@ app.use("/school-questionnaires", schoolQuestionnaireRoutes);
 app.use("/diary", diaryRoutes);
 app.use("/consent-forms", consentFormRoutes);
 // הייצוא של הפונקציה לאוויר
-exports.api = functions.https.onRequest(app);
+// timeoutSeconds מוגדל כדי לאפשר לניסוח מחדש קבוצתי (batch AI rephrase)
+// להריץ כמה קריאות LLM ברצף בלי לפגוע ב-timeout הדיפולטי (60 שניות)
+exports.api = functions.runWith({ timeoutSeconds: 300 }).https.onRequest(app);

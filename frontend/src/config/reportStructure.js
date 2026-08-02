@@ -205,3 +205,33 @@ export const REPORT_STRUCTURE = [
     ],
   },
 ];
+
+// משטחת את כל בלוקי ה-narrative (כולל כאלה שמקוננים בתוך group) לרשימה
+// אחת - מקור האמת היחיד לאילו בלוקים ניתן לשלוח לניסוח מחדש (בודד או
+// קבוצתי). topLevelId/subId מתארים איך לכתוב את הערך חזרה ל-formData:
+// בלוק top-level -> formData[topLevelId], בלוק מקונן -> formData[topLevelId][subId].
+export const getNarrativeBlocks = () => {
+  const blocks = [];
+  REPORT_STRUCTURE.forEach((section) => {
+    if (section.type === "narrative") {
+      blocks.push({
+        sectionId: section.id,
+        topLevelId: section.id,
+        subId: null,
+        title: section.title,
+      });
+    } else if (section.type === "group") {
+      section.subsections.forEach((sub) => {
+        if (sub.type === "narrative") {
+          blocks.push({
+            sectionId: sub.id,
+            topLevelId: section.id,
+            subId: sub.id,
+            title: `${section.title} - ${sub.title}`,
+          });
+        }
+      });
+    }
+  });
+  return blocks;
+};

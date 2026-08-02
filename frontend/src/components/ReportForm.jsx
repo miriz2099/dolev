@@ -573,11 +573,13 @@
 // };
 
 // export default ReportForm;
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import reportService from "../services/report.service";
-import { REPORT_STRUCTURE } from "../config/reportStructure";
-import AiRephraseField from "./AiRephraseField";
+import { REPORT_STRUCTURE, getNarrativeBlocks } from "../config/reportStructure";
+import AiRephraseField, { MIN_CHARS } from "./AiRephraseField";
+import AiRephraseBatchModal from "./AiRephraseBatchModal";
+import PlausibilityReviewModal from "./PlausibilityReviewModal";
 
 // ======================== Sub-components ========================
 
@@ -733,6 +735,12 @@ const SectionRenderer = ({
   onChange,
   diagnosisId,
   isCompleted,
+  selectMode,
+  selectedIds,
+  eligibleIds,
+  onToggleSelect,
+  plausibilityIssues,
+  onAcknowledgeWarning,
 }) => {
   switch (section.type) {
     case "infoTable":
@@ -756,14 +764,36 @@ const SectionRenderer = ({
 
     case "narrative":
       return (
-        <AiRephraseField
-          diagnosisId={diagnosisId}
-          sectionId={section.id}
-          value={data || ""}
-          onChange={onChange}
-          rows={6}
-          disabled={isCompleted}
-        />
+        <div className="flex items-start gap-3">
+          {selectMode && (
+            <input
+              type="checkbox"
+              checked={selectedIds?.has(section.id) || false}
+              onChange={() => onToggleSelect(section.id)}
+              disabled={!eligibleIds?.has(section.id)}
+              title={
+                eligibleIds?.has(section.id)
+                  ? "בחר/י בלוק זה לניסוח קבוצתי"
+                  : `יש לכתוב לפחות ${MIN_CHARS} תווים כדי לבחור`
+              }
+              className="mt-3 w-5 h-5 accent-purple-600 shrink-0 disabled:opacity-30"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <AiRephraseField
+              diagnosisId={diagnosisId}
+              sectionId={section.id}
+              value={data || ""}
+              onChange={onChange}
+              rows={6}
+              disabled={isCompleted}
+              warning={plausibilityIssues?.[section.id] || null}
+              onAcknowledgeWarning={
+                onAcknowledgeWarning ? () => onAcknowledgeWarning(section.id) : undefined
+              }
+            />
+          </div>
+        </div>
       );
 
     case "list":
@@ -796,6 +826,12 @@ const SectionRenderer = ({
                 diagnosisId={diagnosisId}
                 isCompleted={isCompleted}
                 data={data?.[sub.id]}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                eligibleIds={eligibleIds}
+                onToggleSelect={onToggleSelect}
+                plausibilityIssues={plausibilityIssues}
+                onAcknowledgeWarning={onAcknowledgeWarning}
                 onChange={(val) => {
                   const updated = { ...(data || {}), [sub.id]: val };
                   onChange(updated);
@@ -850,6 +886,19 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
     REPORT_STRUCTURE[0]?.id || "",
   );
   const autoSaveTimer = useRef(null);
+
+  // ---- ניסוח מחדש קבוצתי: בחירת בלוקים ----
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+
+  // ---- בדיקת סבירות תוכן לפני הגשה ----
+  const [plausibilityIssues, setPlausibilityIssues] = useState({}); // { [sectionId]: reason }
+  const [acknowledgedIds, setAcknowledgedIds] = useState(() => new Set());
+  const [plausibilityModalOpen, setPlausibilityModalOpen] = useState(false);
+  const [checkingPlausibility, setCheckingPlausibility] = useState(false);
+
+  const narrativeBlocks = useMemo(() => getNarrativeBlocks(), []);
 
   // ---- טעינת דוח קיים (אם יש) ----
   useEffect(() => {
@@ -926,6 +975,121 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
     setFormData((prev) => ({ ...prev, [sectionId]: value }));
   }, []);
 
+  // ---- ניסוח מחדש קבוצתי: עזרים לבחירת בלוקים ----
+  const getBlockText = useCallback(
+    (block) =>
+      (block.subId ? formData[block.topLevelId]?.[block.subId] : formData[block.topLevelId]) ||
+      "",
+    [formData],
+  );
+
+  const eligibleBlocks = useMemo(
+    () => narrativeBlocks.filter((b) => getBlockText(b).trim().length >= MIN_CHARS),
+    [narrativeBlocks, getBlockText],
+  );
+  const eligibleIds = useMemo(
+    () => new Set(eligibleBlocks.map((b) => b.sectionId)),
+    [eligibleBlocks],
+  );
+
+  const toggleSelectMode = () => {
+    setSelectMode((prev) => !prev);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === eligibleBlocks.length
+        ? new Set()
+        : new Set(eligibleBlocks.map((b) => b.sectionId)),
+    );
+  };
+
+  const toggleSelectBlock = (sectionId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
+  // מקבלת מפה { sectionId: newText } מהמאבחנת (רק בלוקים שאושרו במסך
+  // הסקירה הקבוצתית) וכותבת אותה בחזרה ל-formData - כולל בלוקים
+  // מקוננים בתוך group (topLevelId/subId, ראה getNarrativeBlocks).
+  const applyBatchResults = (acceptedMap) => {
+    setFormData((prev) => {
+      const next = { ...prev };
+      narrativeBlocks.forEach((block) => {
+        if (!(block.sectionId in acceptedMap)) return;
+        const value = acceptedMap[block.sectionId];
+        if (block.subId) {
+          next[block.topLevelId] = { ...(next[block.topLevelId] || {}), [block.subId]: value };
+        } else {
+          next[block.topLevelId] = value;
+        }
+      });
+      return next;
+    });
+    setBatchModalOpen(false);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const selectedBlocksForModal = useMemo(
+    () =>
+      narrativeBlocks
+        .filter((b) => selectedIds.has(b.sectionId))
+        .map((b) => ({ sectionId: b.sectionId, title: b.title, rawText: getBlockText(b) })),
+    [narrativeBlocks, selectedIds, getBlockText],
+  );
+
+  // ---- אישור אזהרת סבירות ישירות מהשדה: מבטלת את הסימון האדום מיידית ----
+  const acknowledgePlausibilityWarning = (sectionId) => {
+    setAcknowledgedIds((prev) => new Set(prev).add(sectionId));
+    setPlausibilityIssues((prev) => {
+      const next = { ...prev };
+      delete next[sectionId];
+      return next;
+    });
+  };
+
+  // ---- toggle של checkbox בודד במודל הסקירה (בלי למחוק את השורה) ----
+  const togglePlausibilityAcknowledge = (sectionId) => {
+    setAcknowledgedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
+  // ---- "אשר הכל והמשך" במודל: מאשרת הכל וממשיכה ישר להגשה ----
+  const acknowledgeAllAndContinueSubmit = async () => {
+    setAcknowledgedIds(new Set(Object.keys(plausibilityIssues)));
+    setPlausibilityModalOpen(false);
+    await proceedToSubmit();
+  };
+
+  // ---- "המשך להגשה" במודל (אחרי שכל הבלוקים אושרו ידנית) ----
+  const continueSubmitFromModal = async () => {
+    setPlausibilityModalOpen(false);
+    await proceedToSubmit();
+  };
+
+  const plausibilityIssuesForModal = useMemo(
+    () =>
+      narrativeBlocks
+        .filter((b) => b.sectionId in plausibilityIssues)
+        .map((b) => ({
+          sectionId: b.sectionId,
+          title: b.title,
+          rawText: getBlockText(b),
+          reason: plausibilityIssues[b.sectionId],
+        })),
+    [narrativeBlocks, plausibilityIssues, getBlockText],
+  );
+
   // ---- שמירת טיוטה ----
   const handleSaveDraft = async (silent = false) => {
     try {
@@ -942,8 +1106,8 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
     }
   };
 
-  // ---- הגשה סופית ----
-  const handleSubmit = async () => {
+  // ---- ההגשה בפועל (אחרי שבדיקת הסבירות עברה / אושרה) ----
+  const proceedToSubmit = async () => {
     if (!window.confirm("האם להגיש את הדוח? לא ניתן לערוך לאחר ההגשה.")) return;
     try {
       setSaving(true);
@@ -958,6 +1122,53 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ---- בדיקת סבירות תוכן (התאמה נושאית לבלוק) לפני הגשה ----
+  const handleSubmit = async () => {
+    const blocksToCheck = narrativeBlocks
+      .map((block) => ({ ...block, rawText: getBlockText(block) }))
+      .filter((block) => block.rawText.trim().length > 0);
+
+    if (blocksToCheck.length === 0) {
+      await proceedToSubmit();
+      return;
+    }
+
+    setCheckingPlausibility(true);
+    const foundIssues = {};
+    try {
+      const token = await currentUser.getIdToken();
+      await reportService.checkPlausibility(
+        diagnosisId,
+        blocksToCheck.map(({ sectionId, title, rawText }) => ({ sectionId, title, rawText })),
+        token,
+        {
+          onProgress: (event) => {
+            if (event.type === "result" && event.reasonable === false) {
+              foundIssues[event.sectionId] = event.reason || "";
+            }
+          },
+        },
+      );
+    } catch (err) {
+      // Fail-open גם בצד הלקוח: אם בדיקת הסבירות עצמה נכשלה (רשת/שרת),
+      // לא חוסמים הגשה - פשוט ממשיכים כאילו לא נמצאו בעיות.
+      console.error("Error checking plausibility:", err);
+      setCheckingPlausibility(false);
+      await proceedToSubmit();
+      return;
+    }
+    setCheckingPlausibility(false);
+
+    if (Object.keys(foundIssues).length === 0) {
+      await proceedToSubmit();
+      return;
+    }
+
+    setPlausibilityIssues(foundIssues);
+    setAcknowledgedIds(new Set());
+    setPlausibilityModalOpen(true);
   };
 
   // ---- יצוא דוח ל-PDF באמצעות הסרביס ----
@@ -1075,6 +1286,51 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
           )}
         </div>
 
+        {/* סרגל ניסוח מחדש קבוצתי */}
+        {!isCompleted && (
+          <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${
+                selectMode
+                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  : "border border-purple-300 text-purple-700 hover:bg-purple-50"
+              }`}
+            >
+              {selectMode ? "✕ בטל בחירה" : "☑ בחירת בלוקים לניסוח מחדש"}
+            </button>
+
+            {selectMode && (
+              <>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={
+                      eligibleBlocks.length > 0 && selectedIds.size === eligibleBlocks.length
+                    }
+                    onChange={toggleSelectAll}
+                    disabled={eligibleBlocks.length === 0}
+                    className="w-4 h-4 accent-purple-600"
+                  />
+                  בחר את כל הדוח
+                </label>
+
+                <span className="text-sm text-gray-500">נבחרו {selectedIds.size} בלוקים</span>
+
+                <button
+                  type="button"
+                  onClick={() => setBatchModalOpen(true)}
+                  disabled={selectedIds.size === 0}
+                  className="mr-auto px-4 py-2 rounded-xl text-sm font-semibold bg-purple-500 text-white hover:bg-purple-600 transition disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  ✨ נסח מחדש {selectedIds.size} בלוקים נבחרים
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* מקטעי הטופס */}
         {REPORT_STRUCTURE.map((section) => (
           <div
@@ -1088,10 +1344,36 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
               data={formData[section.id]}
               diagnosisId={diagnosisId}
               isCompleted={isCompleted}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              eligibleIds={eligibleIds}
+              onToggleSelect={toggleSelectBlock}
+              plausibilityIssues={plausibilityIssues}
+              onAcknowledgeWarning={acknowledgePlausibilityWarning}
               onChange={(val) => updateSection(section.id, val)}
             />
           </div>
         ))}
+
+        {batchModalOpen && (
+          <AiRephraseBatchModal
+            diagnosisId={diagnosisId}
+            blocks={selectedBlocksForModal}
+            onClose={() => setBatchModalOpen(false)}
+            onConfirm={applyBatchResults}
+          />
+        )}
+
+        {plausibilityModalOpen && (
+          <PlausibilityReviewModal
+            issues={plausibilityIssuesForModal}
+            acknowledgedIds={acknowledgedIds}
+            onAcknowledge={togglePlausibilityAcknowledge}
+            onAcknowledgeAll={acknowledgeAllAndContinueSubmit}
+            onCancel={() => setPlausibilityModalOpen(false)}
+            onContinue={continueSubmitFromModal}
+          />
+        )}
 
         {/* כפתורים כאשר הדוח עדיין בעריכה */}
         {!isCompleted && (
@@ -1116,10 +1398,10 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={saving}
+              disabled={saving || checkingPlausibility}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
             >
-              הגש דוח סופי
+              {checkingPlausibility ? "בודקת תוכן..." : "הגש דוח סופי"}
             </button>
           </div>
         )}

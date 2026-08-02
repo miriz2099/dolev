@@ -159,4 +159,105 @@ const rephraseSection = async ({ sectionId, rawText, child, parent }) => {
   throw lastError;
 };
 
-module.exports = { rephraseSection };
+/**
+ * מפענחת את תשובת ה-JSON של בדיקת הסבירות. עמידה בפני עטיפת markdown
+ * (```json ... ```) שמודלים לפעמים מוסיפים למרות ההוראה שלא.
+ * Fail-open: אם אי אפשר לפענח - מחזירה reasonable:true במקום לזרוק,
+ * כדי שכשל פענוח לעולם לא יחסום הגשת דוח.
+ */
+const parsePlausibilityResponse = (text) => {
+  try {
+    const cleaned = text
+      .trim()
+      .replace(/^```(?:json)?/i, "")
+      .replace(/```$/, "")
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed.reasonable === "boolean") {
+      return {
+        reasonable: parsed.reasonable,
+        reason: typeof parsed.reason === "string" ? parsed.reason : "",
+      };
+    }
+  } catch (err) {
+    // נופל ל-fail-open למטה
+  }
+  console.warn("[ai] plausibility response could not be parsed, defaulting to reasonable=true");
+  return { reasonable: true, reason: "" };
+};
+
+/**
+ * בודקת האם טקסט חופשי שהמאבחנת כתבה שייך נושאית לסעיף הדוח שבו הוא
+ * נמצא (לא בדיקת נכונות קלינית - רק "האם זה שייך לכאן").
+ *
+ * @param {object} params
+ * @param {string} params.sectionId - מזהה המקטע (למטרות לוג בלבד)
+ * @param {string} params.sectionTitle - הכותרת בעברית של הסעיף
+ * @param {string} params.rawText - הטקסט שהמאבחנת כתבה
+ * @param {object} [params.child]
+ * @param {object} [params.parent]
+ * @returns {Promise<{reasonable: boolean, reason: string, provider: string, model: string}>}
+ */
+const checkSectionPlausibility = async ({
+  sectionId,
+  sectionTitle,
+  rawText,
+  child,
+  parent,
+}) => {
+  if (typeof rawText !== "string" || !rawText.trim()) {
+    throw new AiError("rawText is empty", {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+
+  if (rawText.length > prompts.MAX_INPUT_CHARS) {
+    throw new AiError(`rawText exceeds ${prompts.MAX_INPUT_CHARS} chars`, {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+
+  const entityMap = deidentify.buildEntityMap(child, parent);
+  const { text: safeText } = deidentify.redact(rawText, entityMap);
+
+  const params = {
+    systemPrompt: prompts.buildPlausibilitySystemPrompt(sectionTitle || sectionId),
+    userText: prompts.buildUserContent(safeText),
+  };
+
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  const chain = getChain();
+
+  if (chain.length === 0) {
+    throw new AiError("No valid AI provider configured", {
+      status: 500,
+      retryable: false,
+      code: "AI_CONFIG",
+    });
+  }
+
+  let lastError;
+
+  for (const name of chain) {
+    const provider = providers[name];
+    try {
+      const result = await callProviderWithRetry(provider, params, timeoutMs);
+      const { reasonable, reason } = parsePlausibilityResponse(result.text);
+
+      return { reasonable, reason, provider: name, model: result.model };
+    } catch (error) {
+      lastError = error;
+      console.error(`[ai] plausibility provider "${name}" failed: ${error.message}`);
+
+      if (!error.retryable) throw error;
+    }
+  }
+
+  throw lastError;
+};
+
+module.exports = { rephraseSection, checkSectionPlausibility };

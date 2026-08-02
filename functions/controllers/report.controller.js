@@ -1,6 +1,6 @@
 // functions/controllers/report.controller.js
 const { db } = require("../config/firebase");
-const { rephraseSection } = require("../services/ai");
+const { rephraseSection, checkSectionPlausibility } = require("../services/ai");
 const { toUserMessage } = require("../services/ai/errors");
 const pdfService = require("../services/pdf.service");
 
@@ -312,6 +312,247 @@ const generateReportSection = async (req, res) => {
   }
 };
 
+const MAX_BATCH_SECTIONS = 25;
+
+// POST /reports/ai/rephrase-batch
+// ניסוח מחדש של כמה מקטעים בבת אחת - אבל כל מקטע נשלח ל-LLM
+// בנפרד (בלולאה סדרתית), כדי שלא "יתערבב" תוכן בין מקטעים.
+// התשובה נשלחת כ-NDJSON (שורת JSON אחת לכל מקטע שמסתיים) כדי
+// שהלקוח יוכל להציג התקדמות בזמן אמת במקום לחכות לסיום כל הבאצ'.
+// ⚠️ בדיוק כמו ב-endpoint הבודד - התוצאות מוחזרות בלבד ואינן נשמרות.
+const generateReportSectionsBatch = async (req, res) => {
+  const { diagnosisId, sections } = req.body;
+
+  // --- ולידציה ---
+  if (!diagnosisId || !Array.isArray(sections) || sections.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "חסרים שדות חובה: diagnosisId, sections" });
+  }
+  if (sections.length > MAX_BATCH_SECTIONS) {
+    return res
+      .status(400)
+      .json({ error: `ניתן לנסח עד ${MAX_BATCH_SECTIONS} מקטעים בבת אחת` });
+  }
+  for (const item of sections) {
+    if (!item?.sectionId || typeof item.rawText !== "string" || !item.rawText.trim()) {
+      return res
+        .status(400)
+        .json({ error: "כל מקטע חייב לכלול sectionId וטקסט לניסוח" });
+    }
+    if (item.rawText.length > 5000) {
+      return res
+        .status(400)
+        .json({ error: "הטקסט ארוך מדי לניסוח (מקסימום 5000 תווים למקטע)" });
+    }
+  }
+
+  try {
+    // --- הרשאה: רק המאבחן בעל האבחון או אדמין ---
+    const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
+
+    // --- טעינת פרטי הילד וההורה עבור שכבת ה-de-identification (פעם אחת לכל הבאצ') ---
+    let child = {};
+    let parent = {};
+
+    const childId = access.diagnosis.childId;
+    if (childId) {
+      const childDoc = await db.collection("children").doc(childId).get();
+      if (childDoc.exists) {
+        child = childDoc.data();
+
+        if (child.parentId) {
+          const parentDoc = await db.collection("users").doc(child.parentId).get();
+          if (parentDoc.exists) parent = parentDoc.data();
+        }
+      }
+    }
+
+    res.status(200).set({
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-cache",
+    });
+
+    const total = sections.length;
+
+    for (let index = 0; index < total; index++) {
+      const { sectionId, rawText } = sections[index];
+      try {
+        const result = await rephraseSection({ sectionId, rawText, child, parent });
+
+        res.write(
+          JSON.stringify({
+            type: "result",
+            index,
+            total,
+            sectionId,
+            text: result.text,
+            provider: result.provider,
+            model: result.model,
+          }) + "\n",
+        );
+
+        db.collection("ai_audit")
+          .add({
+            userId: req.user.uid,
+            diagnosisId,
+            childId: childId || null,
+            sectionId,
+            provider: result.provider,
+            model: result.model,
+            inputChars: rawText.length,
+            usage: result.usage || null,
+            createdAt: new Date().toISOString(),
+          })
+          .catch((err) => console.error("[audit] failed to log AI usage:", err));
+      } catch (error) {
+        console.error(`Error in generateReportSectionsBatch (sectionId=${sectionId}):`, error);
+        res.write(
+          JSON.stringify({
+            type: "result",
+            index,
+            total,
+            sectionId,
+            error: toUserMessage(error),
+          }) + "\n",
+        );
+      }
+    }
+
+    res.write(JSON.stringify({ type: "done" }) + "\n");
+    res.end();
+  } catch (error) {
+    console.error("Error in generateReportSectionsBatch:", error);
+    // אם עוד לא נשלחו headers - אפשר להחזיר שגיאת JSON רגילה.
+    // אם הסטרים כבר התחיל - אי אפשר לשנות status code, אז מדווחים
+    // שגיאה גורפת כשורת NDJSON אחרונה ומסיימים את החיבור.
+    if (!res.headersSent) {
+      const status = error?.name === "AiError" ? error.status : 500;
+      return res.status(status).json({ error: toUserMessage(error) });
+    }
+    res.write(JSON.stringify({ type: "fatal", error: toUserMessage(error) }) + "\n");
+    res.end();
+  }
+};
+
+// POST /reports/ai/check-plausibility
+// בודקת האם התוכן שנכתב בכל מקטע נבחר שייך נושאית לסעיף שבו הוא נמצא -
+// לא בדיקת נכונות קלינית, רק "האם זה שייך לכאן". רצה בלוק-בלוק (סדרתי,
+// כמו generateReportSectionsBatch) וזורמת NDJSON כדי לדווח התקדמות.
+// ⚠️ בדיקה בלבד - לא נכתב שום דבר ל-DB, ולא כתוב audit (זו לא קריאה
+// שמייצרת תוכן קליני שנשמר בדוח).
+const checkReportPlausibility = async (req, res) => {
+  const { diagnosisId, sections } = req.body;
+
+  // --- ולידציה ---
+  if (!diagnosisId || !Array.isArray(sections) || sections.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "חסרים שדות חובה: diagnosisId, sections" });
+  }
+  if (sections.length > MAX_BATCH_SECTIONS) {
+    return res
+      .status(400)
+      .json({ error: `ניתן לבדוק עד ${MAX_BATCH_SECTIONS} מקטעים בבת אחת` });
+  }
+  for (const item of sections) {
+    if (!item?.sectionId || typeof item.rawText !== "string" || !item.rawText.trim()) {
+      return res
+        .status(400)
+        .json({ error: "כל מקטע חייב לכלול sectionId וטקסט לבדיקה" });
+    }
+    if (item.rawText.length > 5000) {
+      return res
+        .status(400)
+        .json({ error: "הטקסט ארוך מדי לבדיקה (מקסימום 5000 תווים למקטע)" });
+    }
+  }
+
+  try {
+    // --- הרשאה: רק המאבחן בעל האבחון או אדמין ---
+    const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
+
+    // --- טעינת פרטי הילד וההורה עבור שכבת ה-de-identification (פעם אחת לכל הבאצ') ---
+    let child = {};
+    let parent = {};
+
+    const childId = access.diagnosis.childId;
+    if (childId) {
+      const childDoc = await db.collection("children").doc(childId).get();
+      if (childDoc.exists) {
+        child = childDoc.data();
+
+        if (child.parentId) {
+          const parentDoc = await db.collection("users").doc(child.parentId).get();
+          if (parentDoc.exists) parent = parentDoc.data();
+        }
+      }
+    }
+
+    res.status(200).set({
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-cache",
+    });
+
+    const total = sections.length;
+
+    for (let index = 0; index < total; index++) {
+      const { sectionId, title, rawText } = sections[index];
+      try {
+        const result = await checkSectionPlausibility({
+          sectionId,
+          sectionTitle: title,
+          rawText,
+          child,
+          parent,
+        });
+
+        res.write(
+          JSON.stringify({
+            type: "result",
+            index,
+            total,
+            sectionId,
+            reasonable: result.reasonable,
+            reason: result.reason,
+          }) + "\n",
+        );
+      } catch (error) {
+        // Fail-open גם ברמת ה-controller: אם הבדיקה עצמה נכשלה (למשל
+        // הספק כולו למטה) - לא חוסמים הגשה, פשוט מדווחים "הגיוני".
+        console.error(`Error in checkReportPlausibility (sectionId=${sectionId}):`, error);
+        res.write(
+          JSON.stringify({
+            type: "result",
+            index,
+            total,
+            sectionId,
+            reasonable: true,
+            reason: "",
+          }) + "\n",
+        );
+      }
+    }
+
+    res.write(JSON.stringify({ type: "done" }) + "\n");
+    res.end();
+  } catch (error) {
+    console.error("Error in checkReportPlausibility:", error);
+    if (!res.headersSent) {
+      const status = error?.name === "AiError" ? error.status : 500;
+      return res.status(status).json({ error: toUserMessage(error) });
+    }
+    res.write(JSON.stringify({ type: "fatal", error: toUserMessage(error) }) + "\n");
+    res.end();
+  }
+};
+
 const downloadReportPDF = async (req, res) => {
   try {
     // Security check (Example: Only therapists or admins can export reports)
@@ -437,6 +678,8 @@ module.exports = {
   submitReport,
   listReports,
   generateReportSection,
+  generateReportSectionsBatch,
+  checkReportPlausibility,
   getReportById,
   downloadReportPDF,
   openReportForEditing,

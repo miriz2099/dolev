@@ -8,7 +8,7 @@ import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import reportService from "../services/report.service";
 
-const MIN_CHARS = 15;
+export const MIN_CHARS = 15;
 
 const AiRephraseField = ({
   diagnosisId,
@@ -17,6 +17,8 @@ const AiRephraseField = ({
   onChange,
   rows = 6,
   disabled = false,
+  warning = null,
+  onAcknowledgeWarning,
 }) => {
   const { currentUser } = useAuth();
 
@@ -92,9 +94,27 @@ const AiRephraseField = ({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         placeholder="אפשר לכתוב בקצרה ובחופשיות - ואז ללחוץ על 'נסח מחדש'"
-        className="border border-gray-300 p-2 rounded-lg outline-none resize-y
-                   focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+        className={`border p-2 rounded-lg outline-none resize-y focus:ring-2 disabled:bg-gray-50 ${
+          warning
+            ? "border-red-400 focus:ring-red-400"
+            : "border-gray-300 focus:ring-blue-500"
+        }`}
       />
+
+      {warning && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+          <span className="flex-1">⚠ ייתכן שהתוכן לא מתאים לסעיף זה: {warning}</span>
+          {onAcknowledgeWarning && (
+            <button
+              type="button"
+              onClick={onAcknowledgeWarning}
+              className="px-3 py-1 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-100 transition shrink-0"
+            >
+              אשר בכל זאת
+            </button>
+          )}
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">

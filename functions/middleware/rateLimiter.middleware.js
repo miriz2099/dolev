@@ -90,9 +90,34 @@ const aiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// הגבלה לניסוח מחדש קבוצתי (batch) - כל בקשה כזו יכולה להריץ עשרות
+// קריאות LLM ברצף בצד השרת, ולכן המגבלה כאן היא על מספר ה*בקשות*
+// עצמן ולא מתחשבת ב-aiLimiter (שמגביל בקשות בודדות).
+const aiBatchLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 דקות
+  max: 3,
+  keyGenerator: (req) => req.user?.uid || ipKeyGenerator(req.ip),
+  message: { error: "יותר מדי בקשות ניסוח קבוצתי. המתיני כמה דקות ונסי שוב." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// הגבלה לבדיקת סבירות תוכן לפני הגשת דוח - bucket נפרד מ-aiBatchLimiter
+// כדי שניסוח מחדש קבוצתי ובדיקת סבירות לא יתחרו על אותה מכסה.
+const aiPlausibilityLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 דקות
+  max: 5,
+  keyGenerator: (req) => req.user?.uid || ipKeyGenerator(req.ip),
+  message: { error: "יותר מדי בדיקות סבירות. המתיני כמה דקות ונסי שוב." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   generalLimiter,
   publicRouteLimiter,
   messageLimiter,
   aiLimiter,
+  aiBatchLimiter,
+  aiPlausibilityLimiter,
 };

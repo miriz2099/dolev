@@ -82,6 +82,44 @@ const fetchWithAuth = async (url, token, options = {}) => {
   return response.json();
 };
 
+// שולחת בקשת POST וקוראת תשובת NDJSON (שורת JSON אחת לכל אירוע) בהדרגה,
+// כדי לדווח התקדמות בזמן אמת דרך onProgress במקום לחכות לתשובה השלמה.
+// משמשת גם לניסוח מחדש קבוצתי וגם לבדיקת סבירות תוכן.
+const streamNdjson = async (url, body, token, { onProgress, signal } = {}) => {
+  const response = await fetch(url, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok || !response.body) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Server Error");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let newlineIndex;
+    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line) onProgress?.(JSON.parse(line));
+    }
+  }
+  if (buffer.trim()) onProgress?.(JSON.parse(buffer.trim()));
+};
+
 const reportService = {
   // שליפת דוח לפי אבחון (או null אם אין)
   getByDiagnosis: (diagnosisId, token) =>
@@ -121,6 +159,30 @@ const reportService = {
       method: "POST",
       body: JSON.stringify({ diagnosisId, sectionId, rawText }),
     }),
+
+  // 🆕 ניסוח מחדש קבוצתי - שולח כמה מקטעים בבקשה אחת, אבל כל מקטע
+  // מנוסח בנפרד מאחורי הקלעים (ראה functions/controllers/report.controller.js).
+  // התשובה מגיעה כ-NDJSON (שורת JSON אחת לכל מקטע שמסתיים) כדי לאפשר
+  // דיווח התקדמות בזמן אמת דרך onProgress, במקום לחכות לסיום כל הבאצ'.
+  rephraseBatch: (diagnosisId, sections, token, opts) =>
+    streamNdjson(
+      `${BASE_URL}/reports/ai/rephrase-batch`,
+      { diagnosisId, sections },
+      token,
+      opts,
+    ),
+
+  // 🆕 בדיקת סבירות תוכן - האם כל מקטע נבחר שייך נושאית לסעיף שבו הוא
+  // נמצא. רצה בלוק-בלוק בצד השרת (checkReportPlausibility) וזורמת
+  // NDJSON באותו פורמט בדיוק כמו rephraseBatch. sections כאן הוא
+  // [{ sectionId, title, rawText }].
+  checkPlausibility: (diagnosisId, sections, token, opts) =>
+    streamNdjson(
+      `${BASE_URL}/reports/ai/check-plausibility`,
+      { diagnosisId, sections },
+      token,
+      opts,
+    ),
 
   // ייצוא ל-PDF (מטפל בקובץ בינארי - Blob)
   exportPDF: async (reportId, token) => {
