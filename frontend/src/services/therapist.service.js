@@ -53,6 +53,25 @@ const getDiagnoses = async (childId, token) => {
   });
 };
 
+// שליפת התקדמות האבחון (5 שלבים, לסרגל ההתקדמות של ההורה)
+const getDiagnosisProgress = async (diagnosisId, token) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/progress`,
+    token,
+    { method: "GET" },
+  );
+};
+
+// ייצוא שאלון ההורים ל-PDF (מאבחן/אדמין בלבד) - מחזיר blob ולא JSON
+const exportParentQuestionnairePDF = async (diagnosisId, token) => {
+  const response = await fetch(
+    `${BASE_URL}/diagnoses/${diagnosisId}/parent-answers/export`,
+    { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!response.ok) throw new Error("Failed to export PDF");
+  return response.blob();
+};
+
 // פתיחת אבחון חדש לילד
 const openNewDiagnosis = async (childId, token) => {
   return await fetchWithAuth(`${BASE_URL}/diagnoses/create`, token, {
@@ -180,6 +199,8 @@ export default {
   // sendMessage,
   getChildDetails,
   getDiagnoses,
+  getDiagnosisProgress,
+  exportParentQuestionnairePDF,
   openNewDiagnosis,
   updateQuestionnaireStatus,
   getParentAnswers,

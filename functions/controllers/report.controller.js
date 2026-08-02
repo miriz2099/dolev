@@ -126,6 +126,9 @@ const submitReport = async (req, res) => {
       ...(formData !== undefined ? { formData } : {}),
     };
 
+    let responseStatus;
+    let responseBody;
+
     if (snapshot.empty) {
       const docRef = await db.collection("reports").add({
         diagnosisId,
@@ -135,13 +138,26 @@ const submitReport = async (req, res) => {
         createdAt: now,
         ...updatePayload,
       });
-      return res
-        .status(201)
-        .json({ id: docRef.id, message: "הדוח הושלם ונשמר" });
+      responseStatus = 201;
+      responseBody = { id: docRef.id, message: "הדוח הושלם ונשמר" };
+    } else {
+      await snapshot.docs[0].ref.update(updatePayload);
+      responseStatus = 200;
+      responseBody = { id: snapshot.docs[0].id, message: "הדוח הושלם" };
     }
 
-    await snapshot.docs[0].ref.update(updatePayload);
-    res.status(200).json({ id: snapshot.docs[0].id, message: "הדוח הושלם" });
+    // מסמנים גם את האבחון עצמו כ"הושלם" - זה מה שמניע את השלב האחרון
+    // בסרגל ההתקדמות של ההורה (getDiagnosisProgress). לא מפילים את כל
+    // הבקשה אם זה נכשל - הדוח עצמו כבר נשמר בהצלחה.
+    await db
+      .collection("diagnoses")
+      .doc(diagnosisId)
+      .update({ status: "הושלם", updatedAt: now })
+      .catch((err) =>
+        console.error("Failed to update diagnosis status on report submit:", err),
+      );
+
+    res.status(responseStatus).json(responseBody);
   } catch (error) {
     console.error("Error in submitReport:", error);
     res.status(500).json({ error: "שגיאה בהשלמת הדוח" });
@@ -615,6 +631,16 @@ const openReportForEditing = async (req, res) => {
       status: "in_progress",
       updatedAt: new Date().toISOString(),
     });
+
+    // מחזירים גם את סטטוס האבחון אחורה - כל עוד הדוח בעריכה מחדש, השלב
+    // האחרון בסרגל ההתקדמות של ההורה לא אמור להיות מסומן כ"הושלם".
+    await db
+      .collection("diagnoses")
+      .doc(diagnosisId)
+      .update({ status: "בתהליך", updatedAt: new Date().toISOString() })
+      .catch((err) =>
+        console.error("Failed to revert diagnosis status on reopen:", err),
+      );
 
     return res.status(200).json({
       success: true,

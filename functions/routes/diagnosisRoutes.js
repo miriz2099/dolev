@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createDiagnosis,
   getDiagnosesByChild,
+  getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,
@@ -19,6 +20,7 @@ const { verifyToken } = require("../middleware/auth.middleware");
 // כל הנתיבים כאן מוגנים ע"י ה-Token
 router.post("/create", verifyToken, createDiagnosis);
 router.get("/child/:childId", verifyToken, getDiagnosesByChild);
+router.get("/:diagnosisId/progress", verifyToken, getDiagnosisProgress);
 router.put("/status/:diagnosisId", verifyToken, updateQuestionnaireStatus);
 router.post(
   "/:diagnosisId/questionnaires/submit",

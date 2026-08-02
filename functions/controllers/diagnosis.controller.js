@@ -2159,6 +2159,25 @@ const createDiagnosis = async (req, res) => {
 const getDiagnosesByChild = async (req, res) => {
   try {
     const { childId } = req.params;
+    const IdFromToken = req.user.uid;
+
+    // 1. שליפת מסמך הילד
+    const childDoc = await db.collection("children").doc(childId).get();
+
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+
+    const childData = childDoc.data();
+
+    // 2. בדיקת אבטחה: האם זה ההורה או המטפל של הילד?
+    if (
+      childData.parentId !== IdFromToken &&
+      childData.therapistId !== IdFromToken
+    ) {
+      return res.status(403).json({ error: "אין הרשאה לצפות במידע זה" });
+    }
+
     const snapshot = await db
       .collection("diagnoses")
       .where("childId", "==", childId)
@@ -2174,6 +2193,84 @@ const getDiagnosesByChild = async (req, res) => {
   } catch (error) {
     console.error("Error fetching diagnoses:", error);
     res.status(500).json({ error: "כשל בשליפת אבחונים" });
+  }
+};
+
+// GET /diagnoses/:diagnosisId/progress
+// מחשבת "איפה ההורה נמצא" בתהליך האבחון - 5 שלבים כרונולוגיים, נגזרים
+// מ-state קיים (שאלון/הסכמה/תיאום אבחונים/דוח). לא נשמר שום דבר חדש -
+// הכל מחושב "on the fly" מהמסמך הקיים.
+const getDiagnosisProgress = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    // בדיקת אבטחה: אותו pattern בדיוק כמו getDiagnosesByChild/getChildById
+    const childDoc = await db.collection("children").doc(diagnosis.childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+    const childData = childDoc.data();
+    if (childData.parentId !== uid && childData.therapistId !== uid) {
+      return res.status(403).json({ error: "אין הרשאה לצפות במידע זה" });
+    }
+
+    // שלב 2: טפסים ראשוניים (שאלון הורים + טופס הסכמה, מקבילים)
+    const questionnaireStatus = diagnosis.parentQuestionnaireStatus || "פתוח";
+    const consentStatus = diagnosis.consentFormStatus || "pending";
+    const formsDone = questionnaireStatus === "נשלח" && consentStatus === "fully_signed";
+
+    // שלבים 3-4: אבחונים נדרשים - "בוצע" נקבע אוטומטית לפי תאריך שעבר,
+    // אין שדה status="completed" בפועל (ראה normalizeNaiveISO/getCurrentNaiveISO למעלה בקובץ)
+    const assessments = diagnosis.requiredAssessments || [];
+    const total = assessments.length;
+    const nowISO = getCurrentNaiveISO();
+    const scheduledCount = assessments.filter((a) => a.status === "scheduled").length;
+    const completedCount = assessments.filter(
+      (a) => a.status === "scheduled" && a.scheduledEnd && normalizeNaiveISO(a.scheduledEnd) <= nowISO,
+    ).length;
+    const schedulingDone = total > 0 && scheduledCount === total;
+    const executionDone = total > 0 && completedCount === total;
+
+    // שלב 5: מוגש = diagnoses.status עודכן בפועל ל"הושלם" ב-submitReport
+    const reportDone = diagnosis.status === "הושלם";
+
+    const steps = [
+      { id: "opened", label: "פתיחת האבחון", done: true },
+      {
+        id: "forms",
+        label: "מילוי טפסים ראשוניים",
+        done: formsDone,
+        details: { questionnaireStatus, consentStatus },
+      },
+      {
+        id: "scheduling",
+        label: "תיאום אבחונים נדרשים",
+        done: schedulingDone,
+        progress: { done: scheduledCount, total },
+      },
+      {
+        id: "execution",
+        label: "ביצוע האבחונים",
+        done: executionDone,
+        progress: { done: completedCount, total },
+      },
+      { id: "report", label: "האבחון הושלם", done: reportDone },
+    ];
+
+    const firstNotDone = steps.findIndex((s) => !s.done);
+    const currentStep = firstNotDone === -1 ? steps.length - 1 : firstNotDone;
+
+    res.status(200).json({ currentStep, steps });
+  } catch (error) {
+    console.error("Error in getDiagnosisProgress:", error);
+    res.status(500).json({ error: "שגיאה בשליפת התקדמות האבחון" });
   }
 };
 
@@ -2902,6 +2999,7 @@ module.exports = {
   // ניהול diagnosis
   createDiagnosis,
   getDiagnosesByChild,
+  getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,

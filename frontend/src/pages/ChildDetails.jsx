@@ -1465,6 +1465,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import ChildTabsHeader from "../components/ChildTabsHeader";
+import DiagnosisProgressStepper from "../components/DiagnosisProgressStepper";
 import ContactTherapist from "../components/ContactTherapist";
 import ParentQuestionnaire from "../components/ParentQuestionnaire";
 import FullChatWindow from "../components/FullChatWindow";
@@ -1480,7 +1481,7 @@ import consentFormService from "../services/consentForm.service";
 const ChildDetails = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
 
   const [childData, setChildData] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -1497,6 +1498,9 @@ const ChildDetails = () => {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [schoolInvite, setSchoolInvite] = useState(null);
   const [activeDiagnosis, setActiveDiagnosis] = useState(null);
+
+  // 🆕 סרגל התקדמות (להורה בלבד)
+  const [diagnosisProgress, setDiagnosisProgress] = useState(null);
 
   // 🆕 Consent Form
   const [consentForm, setConsentForm] = useState(null);
@@ -1527,6 +1531,7 @@ const ChildDetails = () => {
       if (!active) {
         setSchoolInvite(null);
         setConsentForm(null);
+        setDiagnosisProgress(null);
         return;
       }
 
@@ -1539,6 +1544,10 @@ const ChildDetails = () => {
       // 🆕 טעינת טופס ההסכמה של האבחון הפעיל
       const consent = await consentFormService.getByDiagnosis(active.id, token);
       setConsentForm(consent);
+
+      // 🆕 טעינת סרגל ההתקדמות של האבחון הפעיל (לתצוגת הורה)
+      const progress = await therapistService.getDiagnosisProgress(active.id, token);
+      setDiagnosisProgress(progress);
     } catch (err) {
       console.error("Error fetching status:", err);
     }
@@ -1967,6 +1976,9 @@ const ChildDetails = () => {
       </div>
 
       <div className="max-w-7xl mx-auto">
+        {!showQuestionnaire && userRole === "patient" && diagnosisProgress && (
+          <DiagnosisProgressStepper progress={diagnosisProgress} />
+        )}
         {!showQuestionnaire && (
           <ChildTabsHeader
             activeTab={activeTab}
