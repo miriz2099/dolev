@@ -39,6 +39,16 @@ const consentFormService = {
     );
   },
 
+  // ייצוא טופס ההסכמה ל-PDF (מאבחן/אדמין בלבד) - מחזיר blob ולא JSON
+  exportPDF: async (diagnosisId, token) => {
+    const response = await fetch(
+      `${BASE_URL}/consent-forms/by-diagnosis/${diagnosisId}/export`,
+      { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) throw new Error("Failed to export PDF");
+    return response.blob();
+  },
+
   // 🆕 הזמנת הורה שני
   inviteSecondParent: async (formId, payload, token) => {
     return await fetchWithAuth(

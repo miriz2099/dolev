@@ -6,6 +6,7 @@ const {
   submitSchoolSurvey,
   saveSchoolDraft,
   getSchoolSurveyByDiagnosis,
+  exportSchoolQuestionnairePDF,
   resendSchoolInvitation,
   resetSchoolInvitation,
   getInvitationByDiagnosis,
@@ -27,6 +28,11 @@ router.post("/submit/:token", publicRouteLimiter, submitSchoolSurvey);
 router.put("/draft/:token", publicRouteLimiter, saveSchoolDraft);
 
 router.get("/diagnosis/:diagnosisId", verifyToken, getSchoolSurveyByDiagnosis);
+router.get(
+  "/diagnosis/:diagnosisId/export",
+  verifyToken,
+  exportSchoolQuestionnairePDF,
+);
 
 router.post("/resend", verifyToken, resendSchoolInvitation);
 

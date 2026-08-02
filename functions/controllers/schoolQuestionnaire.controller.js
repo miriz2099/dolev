@@ -1,6 +1,7 @@
 const { db } = require("../config/firebase");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const pdfService = require("../services/pdf.service");
 const createSchoolInvitation = async (req, res) => {
   try {
     const { childId, diagnosisId, teacherEmail, teacherName } = req.body;
@@ -247,6 +248,23 @@ const saveSchoolDraft = async (req, res) => {
 const getSchoolSurveyByDiagnosis = async (req, res) => {
   try {
     const { diagnosisId } = req.params;
+    const userId = req.user.uid;
+
+    // בדיקת אבטחה: רק ההורה או המטפל של האבחון רשאים לצפות בשאלון
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const { childId } = diagDoc.data();
+
+    const childDoc = await db.collection("children").doc(childId).get();
+    if (!childDoc.exists) {
+      return res.status(404).json({ error: "הילד לא נמצא" });
+    }
+    const childData = childDoc.data();
+    if (childData.parentId !== userId && childData.therapistId !== userId) {
+      return res.status(403).json({ error: "אין הרשאה לצפות בשאלון זה" });
+    }
 
     // חיפוש השאלון הכי עדכני שנשלח עבור האבחון הזה
     const snapshot = await db
@@ -267,6 +285,53 @@ const getSchoolSurveyByDiagnosis = async (req, res) => {
   } catch (error) {
     console.error("Error fetching school survey:", error);
     res.status(500).json({ error: "שגיאה בשליפת השאלון" });
+  }
+};
+
+// GET /school-questionnaires/diagnosis/:diagnosisId/export
+// ייצוא שאלון בית הספר ל-PDF - מוגבל למאבחן בעל האבחון או אדמין בלבד.
+const exportSchoolQuestionnairePDF = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const role = userDoc.exists ? userDoc.data().role : null;
+    if (role !== "admin" && diagnosis.therapistId !== uid) {
+      return res.status(403).json({ error: "אין הרשאה לייצא שאלון זה" });
+    }
+
+    const snapshot = await db
+      .collection("school_questionnaires")
+      .where("diagnosisId", "==", diagnosisId)
+      .orderBy("submittedAt", "desc")
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res
+        .status(404)
+        .json({ error: "לא נמצא שאלון בית ספר עבור אבחון זה" });
+    }
+
+    const pdfBuffer = await pdfService.generateSchoolQuestionnairePDFBuffer(
+      snapshot.docs[0].data(),
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=school_questionnaire_${diagnosisId}.pdf`,
+    );
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    console.error("Error in exportSchoolQuestionnairePDF:", error);
+    res.status(500).json({ error: "שגיאה בייצוא השאלון ל-PDF" });
   }
 };
 const resendSchoolInvitation = async (req, res) => {
@@ -462,6 +527,7 @@ module.exports = {
   submitSchoolSurvey,
   saveSchoolDraft,
   getSchoolSurveyByDiagnosis,
+  exportSchoolQuestionnairePDF,
   resendSchoolInvitation,
   resetSchoolInvitation,
   getInvitationByDiagnosis,

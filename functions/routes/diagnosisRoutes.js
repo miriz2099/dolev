@@ -7,6 +7,7 @@ const {
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,
+  exportParentQuestionnairePDF,
   addRequiredAssessment,
   updateRequiredAssessment,
   deleteRequiredAssessment,
@@ -31,6 +32,11 @@ router.get(
   "/:diagnosisId/parent-answers",
   verifyToken,
   getParentQuestionnaireAnswers,
+);
+router.get(
+  "/:diagnosisId/parent-answers/export",
+  verifyToken,
+  exportParentQuestionnairePDF,
 );
 
 router.post("/:diagnosisId/assessments", verifyToken, addRequiredAssessment);

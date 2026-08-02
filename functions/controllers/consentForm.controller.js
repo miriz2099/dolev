@@ -1,6 +1,7 @@
 const { db } = require("../config/firebase");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const pdfService = require("../services/pdf.service");
 
 // ============================================
 // Helper: יצירת nodemailer transporter
@@ -62,6 +63,52 @@ const getConsentFormByDiagnosis = async (req, res) => {
   } catch (error) {
     console.error("Error in getConsentFormByDiagnosis:", error);
     res.status(500).json({ error: "שגיאה בשליפת טופס ההסכמה" });
+  }
+};
+
+// ============================================
+// ייצוא טופס ההסכמה ל-PDF - מוגבל למאבחן בעל האבחון או אדמין בלבד
+// GET /consent-forms/by-diagnosis/:diagnosisId/export
+// ============================================
+const exportConsentFormPDF = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const role = userDoc.exists ? userDoc.data().role : null;
+    if (role !== "admin" && diagnosis.therapistId !== uid) {
+      return res.status(403).json({ error: "אין הרשאה לייצא טופס זה" });
+    }
+
+    const snapshot = await db
+      .collection("consent_forms")
+      .where("diagnosisId", "==", diagnosisId)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ error: "לא נמצא טופס הסכמה עבור אבחון זה" });
+    }
+
+    const pdfBuffer = await pdfService.generateConsentFormPDFBuffer(
+      snapshot.docs[0].data(),
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=consent_form_${diagnosisId}.pdf`,
+    );
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    console.error("Error in exportConsentFormPDF:", error);
+    res.status(500).json({ error: "שגיאה בייצוא טופס ההסכמה ל-PDF" });
   }
 };
 
@@ -520,6 +567,7 @@ const signByExternalParent = async (req, res) => {
 
 module.exports = {
   getConsentFormByDiagnosis,
+  exportConsentFormPDF,
   signByRegisteredParent,
   inviteSecondParent,
   getConsentFormByToken,

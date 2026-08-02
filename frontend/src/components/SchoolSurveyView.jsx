@@ -862,7 +862,9 @@
 
 // export default SchoolSurveyView;
 
-import React from "react";
+import React, { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
 
 // --- רכיבי עזר לאחידות עיצובית (מבוסס על QuestionnaireViewer שלך) ---
 
@@ -941,6 +943,9 @@ const DataTable = ({ headers, rows }) => (
 // --- הקומפוננטה הראשית ---
 
 const SchoolSurveyView = ({ data }) => {
+  const { currentUser } = useAuth();
+  const [exporting, setExporting] = useState(false);
+
   if (!data || !data.formData) {
     return (
       <div className="p-10 text-center text-gray-500 italic border-2 border-dashed border-gray-100 rounded-3xl">
@@ -951,11 +956,42 @@ const SchoolSurveyView = ({ data }) => {
 
   const { formData, teacherName, teacherEmail, submittedAt } = data;
 
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true);
+      const token = await currentUser.getIdToken();
+      const blob = await schoolQuestionnaireService.exportPDF(
+        data.diagnosisId,
+        token,
+      );
+      const link = document.createElement("a");
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `school_questionnaire_${data.diagnosisId}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Error exporting school survey PDF:", err);
+      alert("שגיאה בייצוא השאלון ל-PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div
       className="bg-white p-8 rounded-3xl animate-fadeIn font-sans shadow-lg"
       dir="rtl"
     >
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={handleExportPDF}
+          disabled={exporting}
+          className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50"
+        >
+          {exporting ? "מייצא..." : "📄 יצוא ל-PDF"}
+        </button>
+      </div>
       {/* 1. פרטים כלליים וזיהוי */}
       <RenderSection title="פרטי הדיווח והתלמיד">
         <AnswerBox

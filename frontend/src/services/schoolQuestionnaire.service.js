@@ -151,6 +151,16 @@ const schoolQuestionnaireService = {
     return response.json();
   },
 
+  // ייצוא שאלון בית הספר ל-PDF (מאבחן/אדמין בלבד) - מחזיר blob ולא JSON
+  exportPDF: async (diagnosisId, token) => {
+    const response = await fetch(
+      `${BASE_URL}/school-questionnaires/diagnosis/${diagnosisId}/export`,
+      { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) throw new Error("Failed to export PDF");
+    return response.blob();
+  },
+
   getInviteByDiagnosis: async (diagnosisId, token) => {
     try {
       const response = await fetch(

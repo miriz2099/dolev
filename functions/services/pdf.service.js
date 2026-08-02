@@ -266,40 +266,81 @@ const renderSingleSection = (section, sectionData) => {
   return html;
 };
 
+// CSS משותף לכל מסמכי ה-PDF שהמערכת מייצרת (דוח, שאלונים, טופס הסכמה) -
+// כדי שכולם ייראו עקביים ולא נשכפל את הבלוק הזה בכל generator.
+const PDF_BASE_STYLE = `
+    body { font-family: 'Arial', sans-serif; direction: rtl; text-align: right; padding: 45px; line-height: 1.6; color: #2c3e50; }
+    h1 { text-align: center; color: #1a5f7a; margin-bottom: 5px; font-size: 26px; font-weight: bold; }
+    .subtitle { text-align: center; color: #7f8c8d; margin-bottom: 35px; font-size: 15px; }
+    h2 { color: #1a5f7a; border-bottom: 3px solid #1a5f7a; padding-bottom: 5px; margin-top: 40px; font-size: 22px; font-weight: bold; page-break-after: avoid; }
+    h3 { color: #2980b9; font-size: 16px; margin-top: 20px; margin-bottom: 8px; font-weight: bold; page-break-after: avoid; }
+    p { font-size: 14px; text-align: justify; margin-bottom: 12px; color: #34495e; }
+    ul { font-size: 14px; padding-right: 20px; margin-bottom: 15px; }
+    li { margin-bottom: 6px; color: #34495e; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 13px; page-break-inside: avoid; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+    th { background-color: #f1f5f9; color: #1a5f7a; font-weight: bold; }
+
+    .info-table { width: 100%; border: none; }
+    .info-table td { border: 1px solid #e2e8f0; padding: 10px; }
+    .info-label { width: 30%; background-color: #f8f9fa; font-weight: bold; text-align: right; color: #475569; }
+    .info-value { text-align: right; color: #1e293b; }
+
+    .narrative-section { margin-bottom: 20px; }
+`;
+
+/**
+ * עוטפת body HTML במעטפת <html>/<head>/<style> אחידה לכל מסמכי ה-PDF.
+ */
+const wrapHtmlDocument = (title, subtitle, bodyHtml) => `
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>${PDF_BASE_STYLE}</style>
+        </head>
+        <body>
+            <h1>${title}</h1>
+            <div class="subtitle">${subtitle}</div>
+            ${bodyHtml}
+        </body>
+        </html>
+    `;
+
+/**
+ * שורת <tr> יחידה בטבלת מידע (info-table) - מדולגת אם אין ערך, כמו
+ * ב-renderSingleSection הקיים.
+ */
+const infoRow = (label, value) => {
+  if (value === undefined || value === null || String(value).trim() === "")
+    return "";
+  return `<tr><td class="info-label">${label}</td><td class="info-value">${value}</td></tr>`;
+};
+
+/**
+ * טבלה גנרית (headers + rows) לרשימות כמו מהלך לימודים/אחים/סדר יום.
+ */
+const dataTable = (headers, rows) => {
+  const validRows = (rows || []).filter((row) =>
+    row.some((cell) => cell && String(cell).trim() !== ""),
+  );
+  if (validRows.length === 0) return "";
+
+  let html = `<table><thead><tr>`;
+  headers.forEach((h) => (html += `<th>${h}</th>`));
+  html += `</tr></thead><tbody>`;
+  validRows.forEach((row) => {
+    html += `<tr>${row.map((cell) => `<td>${cell || "-"}</td>`).join("")}</tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+};
+
 /**
  * המייצר הראשי של ה-HTML
  */
 const generateReportHTML = (formData) => {
-  let htmlContent = `
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body { font-family: 'Arial', sans-serif; direction: rtl; text-align: right; padding: 45px; line-height: 1.6; color: #2c3e50; }
-                h1 { text-align: center; color: #1a5f7a; margin-bottom: 5px; font-size: 26px; font-weight: bold; }
-                .subtitle { text-align: center; color: #7f8c8d; margin-bottom: 35px; font-size: 15px; }
-                h2 { color: #1a5f7a; border-bottom: 3px solid #1a5f7a; padding-bottom: 5px; margin-top: 40px; font-size: 22px; font-weight: bold; page-break-after: avoid; }
-                h3 { color: #2980b9; font-size: 16px; margin-top: 20px; margin-bottom: 8px; font-weight: bold; page-break-after: avoid; }
-                p { font-size: 14px; text-align: justify; margin-bottom: 12px; color: #34495e; }
-                ul { font-size: 14px; padding-right: 20px; margin-bottom: 15px; }
-                li { margin-bottom: 6px; color: #34495e; }
-                
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 13px; page-break-inside: avoid; }
-                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; }
-                th { background-color: #f1f5f9; color: #1a5f7a; font-weight: bold; }
-                
-                .info-table { width: 100%; border: none; }
-                .info-table td { border: 1px solid #e2e8f0; padding: 10px; }
-                .info-label { width: 30%; background-color: #f8f9fa; font-weight: bold; text-align: right; color: #475569; }
-                .info-value { text-align: right; color: #1e293b; }
-                
-                .narrative-section { margin-bottom: 20px; }
-            </style>
-        </head>
-        <body>
-            <h1>חוות דעת פסיכולוגית</h1>
-            <div class="subtitle">מערכת דולב — ניהול והפקת אבחונים</div>
-    `;
+  let htmlContent = "";
 
   // מעבר על הסטרוקטורה הראשית של הדוח
   REPORT_STRUCTURE.forEach((section) => {
@@ -331,13 +372,21 @@ const generateReportHTML = (formData) => {
     }
   });
 
-  htmlContent += `
-        </body>
-        </html>
-    `;
-
-  return htmlContent;
+  return wrapHtmlDocument(
+    "חוות דעת פסיכולוגית",
+    "מערכת דולב — ניהול והפקת אבחונים",
+    htmlContent,
+  );
 };
+
+const PDF_OPTIONS = {
+  format: "A4",
+  margin: { top: "25mm", bottom: "25mm", left: "20mm", right: "20mm" },
+};
+
+/** ממירה HTML מוכן ל-Buffer של PDF - משותף לכל ה-generators בקובץ */
+const htmlToPdfBuffer = async (htmlContent) =>
+  await htmlPdf.generatePdf({ content: htmlContent }, PDF_OPTIONS);
 
 /**
  * הפונקציה הציבורית שממירה את ה-HTML ל-PDF Buffer
@@ -345,13 +394,307 @@ const generateReportHTML = (formData) => {
 exports.generatePDFBuffer = async (reportData) => {
   // שולחים לרינדור בדיוק את ה-formData (או את ה-reportData עצמו במידה והוא מגיע שלם)
   const dataToRender = reportData.formData ? reportData.formData : reportData;
-  const htmlContent = generateReportHTML(dataToRender);
-
-  const options = {
-    format: "A4",
-    margin: { top: "25mm", bottom: "25mm", left: "20mm", right: "20mm" },
-  };
-  const file = { content: htmlContent };
-
-  return await htmlPdf.generatePdf(file, options);
+  return await htmlToPdfBuffer(generateReportHTML(dataToRender));
 };
+
+// ============================================
+// שאלון הורים -> PDF
+// ============================================
+const generateParentQuestionnaireHTML = (doc) => {
+  const f = doc.formData || {};
+  let html = "";
+
+  html += `<h2>פרטים אישיים</h2><table class="info-table">`;
+  html += infoRow(
+    "שם הילד/ה",
+    `${f.childFirstName || ""} ${f.childLastName || ""}`.trim(),
+  );
+  html += infoRow("ת.ז", f.idNumber);
+  html += infoRow("תאריך לידה", f.birthDate);
+  html += infoRow("מין", f.gender);
+  html += infoRow("שם האב", f.fatherName);
+  html += infoRow("שם האם", f.motherName);
+  html += infoRow("מצב משפחתי", f.familyStatus);
+  html += infoRow("שפה בבית", f.homeLanguage);
+  html += infoRow("כתובת", f.address);
+  html += infoRow("הערות למצב המשפחתי", f.familyNotes);
+  html += `</table>`;
+
+  html += `<h2>סיבת הפנייה ואבחונים קודמים</h2><table class="info-table">`;
+  html += infoRow("תיאור הקושי", f.difficultyDescription);
+  html += infoRow("מטרות הפנייה", f.referralGoals);
+  html += infoRow("מתי התחילו הקשיים?", f.onsetTime);
+  html += infoRow("עבר אבחון בעבר?", f.hadAssessment);
+  if (f.hadAssessment === "כן") {
+    html += infoRow("סוג אבחון קודם", f.assessmentType);
+    html += infoRow("תאריך האבחון", f.assessmentDate);
+    html += infoRow("המלצות אבחונים", f.assessmentRecommendations);
+  }
+  html += infoRow("טיפולים פרא-רפואיים", f.paraMedicalTreatments);
+  html += `</table>`;
+  if (f.assessmentFiles?.length) {
+    html += `<h3>מסמכי אבחון קודם מצורפים</h3><ul>`;
+    f.assessmentFiles.forEach((file) => (html += `<li>${file.name}</li>`));
+    html += `</ul>`;
+  }
+
+  html += `<h2>היסטוריה לימודית</h2><table class="info-table">`;
+  html += infoRow("גיל יציאה למסגרת", f.firstFrameworkAge);
+  html += infoRow("סוג מסגרת ראשונה", f.firstFrameworkType);
+  html += infoRow("דיווח גן חובה", f.preSchoolReports);
+  html += infoRow("נשאר כיתה?", f.stayedGrade);
+  html += infoRow("סיבה", f.stayedGradeReason);
+  html += `</table>`;
+  html += dataTable(
+    ["כיתה", "בית ספר", "יישוב"],
+    f.schoolHistory?.map((s) => [s.grade, s.school, s.city]),
+  );
+
+  html += `<h2>הערכת תפקוד כללית</h2><table class="info-table">`;
+  html += infoRow("תפקוד לימודי", f.functioning?.studies);
+  html += infoRow("תפקוד משפחתי", f.functioning?.family);
+  html += infoRow("תפקוד חברתי", f.functioning?.social);
+  html += infoRow("הערות תפקוד", f.functioning?.notes);
+  html += `</table>`;
+
+  html += `<h2>מבנה המשפחה</h2><table class="info-table">`;
+  html += infoRow("שם האם (בטבלה)", f.familyStructure?.motherNameInTable);
+  html += infoRow("עיסוק האם", f.familyStructure?.motherJob);
+  html += infoRow("שם האב (בטבלה)", f.familyStructure?.fatherNameInTable);
+  html += infoRow("עיסוק האב", f.familyStructure?.fatherJob);
+  html += `</table>`;
+  html += dataTable(
+    ["שם", "גיל", "מסגרת", "הערות"],
+    f.familyStructure?.siblings?.map((s) => [
+      s.name,
+      s.age,
+      s.framework,
+      s.notes,
+    ]),
+  );
+
+  html += `<h2>בריאות והתפתחות</h2><table class="info-table">`;
+  html += infoRow("מצב בריאותי כללי", f.generalHealth);
+  html += infoRow("ממצא בדיקת ראייה", f.visionFindings);
+  html += infoRow("ממצא בדיקת שמיעה", f.hearingFindings);
+  html += infoRow("הריון תקין?", f.development?.normalPregnancy);
+  html += infoRow("משקל לידה", f.development?.birthWeight);
+  html += infoRow("גיל הליכה", f.development?.walkingAge);
+  html += infoRow("גיל דיבור (מילים ראשונות)", f.development?.firstWordsAge);
+  html += infoRow(
+    "גיל גמילה מחיתולים",
+    f.development?.diaperGraduationAge,
+  );
+  html += `</table>`;
+
+  html += `<h2>התנהגות ותפקוד בבית</h2><table class="info-table">`;
+  html += infoRow(
+    "בעיות אוכל/שינה/פחדים",
+    f.currentProblems?.foodSleepFearsDetails,
+  );
+  html += infoRow("חוסר מנוחה/פעילות יתר", f.currentProblems?.restlessness);
+  html += infoRow("מתרגש בקלות", f.currentProblems?.excitedEasily);
+  html += infoRow("מפריע לאחרים", f.currentProblems?.disturbsOthers);
+  html += infoRow(
+    "תלותי/עצמאי",
+    f.currentProblems?.dependencyVsIndependence,
+  );
+  html += infoRow("למי קרוב יותר?", f.currentProblems?.closerToWho);
+  html += `</table>`;
+
+  html += `<h2>סדר יום אופייני</h2>`;
+  html += dataTable(
+    ["שעה", "פעילות"],
+    f.dailyRoutine?.map((r) => [r.time, r.activity]),
+  );
+
+  html += `<h2>חתימה</h2><table class="info-table">`;
+  html += infoRow("חתימת הורים", f.parentsSignature);
+  html += infoRow(
+    "הוגש בתאריך",
+    doc.submittedAt
+      ? new Date(doc.submittedAt).toLocaleString("he-IL")
+      : "",
+  );
+  html += `</table>`;
+
+  return wrapHtmlDocument(
+    "שאלון הורים",
+    "מערכת דולב — ניהול והפקת אבחונים",
+    html,
+  );
+};
+
+exports.generateParentQuestionnairePDFBuffer = async (doc) =>
+  await htmlToPdfBuffer(generateParentQuestionnaireHTML(doc));
+
+// ============================================
+// שאלון בית ספר -> PDF
+// ============================================
+const generateSchoolQuestionnaireHTML = (doc) => {
+  const f = doc.formData || {};
+  let html = "";
+
+  html += `<h2>פרטי הדיווח והתלמיד</h2><table class="info-table">`;
+  html += infoRow(
+    "שם התלמיד/ה",
+    `${f.firstName || ""} ${f.lastName || ""}`.trim(),
+  );
+  html += infoRow("תעודת זהות", f.idNumber);
+  html += infoRow("תאריך לידה", f.birthDate);
+  html += infoRow("כיתה", f.grade);
+  html += infoRow("בית ספר", f.school);
+  html += infoRow("שם המחנך/ת המדווח", doc.teacherName);
+  html += infoRow("מייל המורה", doc.teacherEmail);
+  html += infoRow("טלפון המורה", f.teacherPhone);
+  html += infoRow(
+    "תאריך הגשה",
+    doc.submittedAt
+      ? new Date(doc.submittedAt).toLocaleDateString("he-IL")
+      : "",
+  );
+  html += `</table>`;
+
+  html += `<h2>סיבת ההפניה</h2><table class="info-table">`;
+  html += infoRow("מי יזם את הפנייה?", f.referralInitiator);
+  html += infoRow("סיבות הפנייה המרכזיות", f.referralReasons);
+  html += infoRow("תיאור קשיי התלמיד", f.difficultyDescription);
+  html += `</table>`;
+
+  html += `<h2>הישגים לימודיים ותפקוד</h2>`;
+  html += dataTable(
+    ["כיתה", "בית ספר"],
+    f.schoolHistory
+      ?.filter((h) => h.grade || h.school)
+      .map((h) => [h.grade, h.school]),
+  );
+  html += `<table class="info-table">`;
+  html += infoRow("רמה אקדמית בהשוואה לכיתה", f.academicLevel);
+  html += infoRow("האם נשאר כיתה?", f.stayedGrade);
+  html += infoRow(
+    "באיזו כיתה ולמה?",
+    `${f.stayedGradeWhich || ""} ${f.stayedGradeReasons || ""}`.trim(),
+  );
+  html += infoRow("קריאה", f.reading);
+  html += infoRow("כתיבה", f.writing);
+  html += infoRow("חשבון", f.math);
+  html += `</table>`;
+
+  html += `<h2>יחסים והתנהגות כללית</h2><table class="info-table">`;
+  html += infoRow("טיב היחס אל המורים", f.teacherRelation);
+  html += infoRow("הערות ליחס למורים", f.teacherRelationNotes);
+  html += infoRow("טיב היחסים עם בני הכיתה", f.peerRelation);
+  html += infoRow("בעיות חברתיות", f.peerProblems);
+  html += infoRow("1. דעתו מוסחת בקלות", f.distractedEasily);
+  html += infoRow("2. מתקשה להתרכז במשימות", f.hardToFocus);
+  html += infoRow("3. נע/מסתובב/מטפס באופן מוגזם", f.excessiveMovement);
+  html += infoRow("4. עוזב את הכיסא בשיעור", f.leavesSeats);
+  html += `</table>`;
+
+  if (f.behaviorRatings && Object.keys(f.behaviorRatings).length > 0) {
+    html += `<h2>דירוג בעיות התנהגות מפורטות</h2><table class="info-table">`;
+    Object.entries(f.behaviorRatings).forEach(([behavior, rating]) => {
+      html += infoRow(behavior, rating);
+    });
+    html += `</table>`;
+  }
+
+  html += `<h2>עזרה מיוחדת, התערבות וסיכום</h2><table class="info-table">`;
+  html += infoRow("שעות שילוב", f.integrationHours);
+  html += infoRow("היקף (שש)", f.integrationScope);
+  html += infoRow("כמה שנים", f.integrationYears);
+  html += infoRow(
+    "טיפול רגשי",
+    `${f.emotionalTreatment || ""} ${f.emotionalTreatmentDetails ? `(${f.emotionalTreatmentDetails})` : ""}`.trim(),
+  );
+  html += infoRow(
+    "חינוך מיוחד",
+    `${f.specialEducation || ""} ${f.specialEdName ? `(${f.specialEdName})` : ""}`.trim(),
+  );
+  html += infoRow("עזרה אחרת", f.otherHelp);
+  html += infoRow("סכם התרשמותך מהתלמיד/ה", f.studentSummary);
+  html += infoRow("שאלה אבחונית או אחרת", f.diagnosticQuestion);
+  html += infoRow("ההתערבות הטיפולית המבוקשת", f.requestedIntervention);
+  html += `</table>`;
+
+  html += `<h2>חתימות</h2><table class="info-table">`;
+  html += infoRow("חתימת מחנך/ת", f.teacherSignature || doc.teacherName);
+  html += infoRow("חתימת הנהלה", f.principalSignature);
+  html += infoRow("תאריך חתימה", f.signatureDate || f.date);
+  html += `</table>`;
+
+  return wrapHtmlDocument(
+    "שאלון בית ספר",
+    "מערכת דולב — ניהול והפקת אבחונים",
+    html,
+  );
+};
+
+exports.generateSchoolQuestionnairePDFBuffer = async (doc) =>
+  await htmlToPdfBuffer(generateSchoolQuestionnaireHTML(doc));
+
+// ============================================
+// טופס הסכמה -> PDF
+// ============================================
+const CONSENT_DECLARATION_TEXT =
+  "ההורים החתומים מטה אישרו את עריכת מבחני האבחון הפסיכולוגי לבן/בת " +
+  "המשפחה הרשום/ה מעלה. תוצאות האבחון יישמרו כחומר מקצועי חסוי.";
+
+const formatConsentDate = (iso) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("he-IL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const renderConsentParentBlock = (parent, label) => {
+  if (!parent) return "";
+  let html = `<h3>${label}</h3><table class="info-table">`;
+  html += infoRow("שם", parent.name);
+  html += infoRow("מייל", parent.email);
+  html += infoRow("סטטוס", parent.signed ? "✅ חתם" : "⏳ ממתין");
+  if (parent.signed) {
+    html += infoRow("תאריך חתימה", formatConsentDate(parent.signedAt));
+    html += infoRow("חתימה", parent.signature);
+  } else if (parent.role === "external" && parent.inviteSentAt) {
+    html += infoRow("הוזמן בתאריך", formatConsentDate(parent.inviteSentAt));
+  }
+  html += `</table>`;
+  return html;
+};
+
+const generateConsentFormHTML = (doc) => {
+  const childInfo = doc.childInfo || {};
+  const parents = doc.parents || [];
+  const registered = parents.find((p) => p.role === "registered");
+  const external = parents.find((p) => p.role === "external");
+
+  let html = `<h2>פרטי הנבחן/ת</h2><table class="info-table">`;
+  html += infoRow("שם הנבחן/ת", childInfo.fullName);
+  html += infoRow("מספר מזהה", childInfo.idNumber);
+  html += infoRow("תאריך לידה", childInfo.birthDate);
+  html += infoRow("בית ספר/גן", childInfo.schoolOrGarden);
+  html += infoRow("נוצר בתאריך", formatConsentDate(doc.createdAt));
+  html += `</table>`;
+
+  html += `<h2>הצהרת ההסכמה</h2><div class="narrative-section"><p>${CONSENT_DECLARATION_TEXT}</p></div>`;
+
+  html += `<h2>חתימות ההורים</h2>`;
+  html += renderConsentParentBlock(registered, "הורה רשום במערכת");
+  html += external
+    ? renderConsentParentBlock(external, 'הורה שני (הוזמן ע"י המייל)')
+    : `<p>לא הוזמן הורה שני לטופס זה.</p>`;
+
+  return wrapHtmlDocument(
+    "טופס הסכמה לאבחון",
+    "מערכת דולב — ניהול והפקת אבחונים",
+    html,
+  );
+};
+
+exports.generateConsentFormPDFBuffer = async (doc) =>
+  await htmlToPdfBuffer(generateConsentFormHTML(doc));

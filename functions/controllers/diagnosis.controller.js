@@ -1792,6 +1792,7 @@
 
 const { db } = require("../config/firebase");
 const { deleteDiagnosisCascade } = require("../helpers/cascade.helper");
+const pdfService = require("../services/pdf.service");
 
 const SLOT_STEP_MINUTES = 30;
 
@@ -2413,6 +2414,54 @@ const getParentQuestionnaireAnswers = async (req, res) => {
   }
 };
 
+// GET /diagnoses/:diagnosisId/parent-answers/export
+// ייצוא שאלון ההורים ל-PDF - מוגבל למאבחן בעל האבחון או אדמין בלבד
+// (בניגוד ל-getParentQuestionnaireAnswers שמאפשר גם להורה לצפות).
+const exportParentQuestionnairePDF = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const role = userDoc.exists ? userDoc.data().role : null;
+    if (role !== "admin" && diagnosis.therapistId !== uid) {
+      return res.status(403).json({ error: "אין הרשאה לייצא שאלון זה" });
+    }
+
+    const snapshot = await db
+      .collection("parent_questionnaires")
+      .where("diagnosisId", "==", diagnosisId)
+      .orderBy("submittedAt", "desc")
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res
+        .status(404)
+        .json({ error: "טרם מולא שאלון הורים עבור אבחון זה" });
+    }
+
+    const pdfBuffer = await pdfService.generateParentQuestionnairePDFBuffer(
+      snapshot.docs[0].data(),
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=parent_questionnaire_${diagnosisId}.pdf`,
+    );
+    return res.status(200).send(pdfBuffer);
+  } catch (error) {
+    console.error("Error in exportParentQuestionnairePDF:", error);
+    res.status(500).json({ error: "שגיאה בייצוא השאלון ל-PDF" });
+  }
+};
+
 // ============================================
 // ניהול אבחונים נדרשים (Required Assessments)
 // ============================================
@@ -3003,6 +3052,7 @@ module.exports = {
   updateQuestionnaireStatus,
   submitQuestionnaire,
   getParentQuestionnaireAnswers,
+  exportParentQuestionnairePDF,
   deleteDiagnosis,
 
   // ניהול אבחונים נדרשים

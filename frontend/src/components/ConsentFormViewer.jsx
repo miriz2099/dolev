@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import consentFormService from "../services/consentForm.service";
 
 /**
  * מודאל לצפייה בטופס ההסכמה (למאבחן בלבד - read-only)
@@ -9,11 +11,35 @@ import React from "react";
  * - consentForm: { id, childInfo, parents, status, ... }
  */
 const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
+  const { currentUser } = useAuth();
+  const [exporting, setExporting] = useState(false);
+
   if (!isOpen || !consentForm) return null;
 
   const { childInfo, parents, status, createdAt } = consentForm;
   const registeredParent = parents?.find((p) => p.role === "registered");
   const externalParent = parents?.find((p) => p.role === "external");
+
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true);
+      const token = await currentUser.getIdToken();
+      const blob = await consentFormService.exportPDF(
+        consentForm.diagnosisId,
+        token,
+      );
+      const link = document.createElement("a");
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `consent_form_${consentForm.diagnosisId}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Error exporting consent form PDF:", err);
+      alert("שגיאה בייצוא הטופס ל-PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // עיצוב סטטוס
   const getStatusBadge = () => {
@@ -232,11 +258,18 @@ const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
           )}
         </div>
 
-        {/* כפתור סגירה */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-3xl">
+        {/* כפתורי פעולה */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-3xl flex gap-3">
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting}
+            className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all disabled:opacity-50"
+          >
+            {exporting ? "מייצא..." : "📄 יצוא ל-PDF"}
+          </button>
           <button
             onClick={onClose}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
+            className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
           >
             סגור
           </button>
