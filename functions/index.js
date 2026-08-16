@@ -35,18 +35,20 @@ if (!getApps().length) {
 
 const app = express();
 
+app.set("trust proxy", true);
 // Middlewares
 const allowedOrigins = [
   "https://dolev-8194a.web.app",
   "https://dolev-8194a.firebaseapp.com",
-  "http://localhost:5173"
+  "http://localhost:5173",
 ];
 
-
 app.use(cors({ origin: allowedOrigins }));
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 app.use(express.json());
 app.use(sanitizeBody);
 app.use(generalLimiter);
