@@ -160,6 +160,94 @@ const rephraseSection = async ({ sectionId, rawText, child, parent }) => {
 };
 
 /**
+ * מחברת טיוטה ראשונית לסעיף בדוח ישירות מתוך תשובות מתויגות (label: value)
+ * שנשלפו משאלוני הורים/בית ספר - בניגוד ל-rephraseSection שמנסחת מחדש
+ * טקסט חופשי שהמאבחנת כבר כתבה. אותה תשתית פנימית (chain, retry, timeout,
+ * de-identification) בדיוק כמו rephraseSection.
+ *
+ * @param {object} params
+ * @param {string} params.sectionId   - מזהה המקטע בדוח (reportStructure.js)
+ * @param {string} params.contextText - הטקסט המתויג שנבנה מהשאלונים
+ *                                      (questionnaireContext.buildQuestionnaireContext)
+ * @param {object} [params.child]     - מסמך הילד (ל-de-identification)
+ * @param {object} [params.parent]    - מסמך ההורה (ל-de-identification)
+ * @param {string} [params.childGender] - "בן" או "בת" (מ-formData.gender בשאלון ההורים),
+ *                                        כדי שהניסוח ישתמש במגדר הדקדוקי הנכון
+ * @returns {Promise<{text: string, provider: string, model: string, usage: object}>}
+ */
+const draftSectionFromQuestionnaires = async ({
+  sectionId,
+  contextText,
+  child,
+  parent,
+  childGender,
+}) => {
+  if (typeof contextText !== "string" || !contextText.trim()) {
+    throw new AiError("אין מספיק מידע בשאלונים לסעיף הזה", {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+
+  // 1. הסרת פרטים מזהים לפני היציאה החוצה
+  const entityMap = deidentify.buildEntityMap(child, parent);
+  const { text: safeText, replacements } = deidentify.redact(
+    contextText,
+    entityMap,
+  );
+
+  // 2. בניית הפרומפט (בשרת בלבד)
+  const params = {
+    systemPrompt: prompts.buildDraftSystemPrompt(sectionId),
+    userText: prompts.buildDraftUserContent(safeText, childGender),
+  };
+
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  const chain = getChain();
+
+  if (chain.length === 0) {
+    throw new AiError("No valid AI provider configured", {
+      status: 500,
+      retryable: false,
+      code: "AI_CONFIG",
+    });
+  }
+
+  // 3. מעבר על השרשרת עד להצלחה
+  let lastError;
+
+  for (const name of chain) {
+    const provider = providers[name];
+    try {
+      const result = await callProviderWithRetry(provider, params, timeoutMs);
+
+      // 4. החזרת הפרטים המזהים לטקסט המנוסח
+      const finalText = deidentify.restore(result.text, replacements);
+
+      console.log(
+        `[ai] draft ok provider=${name} model=${result.model} tokens=${result.usage?.totalTokens}`,
+      );
+
+      return {
+        text: finalText,
+        provider: name,
+        model: result.model,
+        usage: result.usage,
+      };
+    } catch (error) {
+      lastError = error;
+      console.error(`[ai] draft provider "${name}" failed: ${error.message}`);
+
+      // שגיאה שאינה זמניות (מפתח פגום, תוכן חסום) — אין טעם לעבור לספק אחר
+      if (!error.retryable) throw error;
+    }
+  }
+
+  throw lastError;
+};
+
+/**
  * מפענחת את תשובת ה-JSON של בדיקת הסבירות. עמידה בפני עטיפת markdown
  * (```json ... ```) שמודלים לפעמים מוסיפים למרות ההוראה שלא.
  * Fail-open: אם אי אפשר לפענח - מחזירה reasonable:true במקום לזרוק,
@@ -260,4 +348,8 @@ const checkSectionPlausibility = async ({
   throw lastError;
 };
 
-module.exports = { rephraseSection, checkSectionPlausibility };
+module.exports = {
+  rephraseSection,
+  checkSectionPlausibility,
+  draftSectionFromQuestionnaires,
+};

@@ -160,6 +160,14 @@ const reportService = {
       body: JSON.stringify({ diagnosisId, sectionId, rawText }),
     }),
 
+  // 🆕 יצירת טיוטה ראשונית לסעיף מתוך נתוני שאלוני ההורים/בית הספר.
+  // מחזיר הצעה בלבד - השמירה מתבצעת רק אם המאבחנת מאשרת בממשק (כמו rephrase).
+  draftFromQuestionnaires: (diagnosisId, sectionId, token) =>
+    fetchWithAuth(`${BASE_URL}/reports/ai/draft-from-questionnaires`, token, {
+      method: "POST",
+      body: JSON.stringify({ diagnosisId, sectionId }),
+    }),
+
   // 🆕 ניסוח מחדש קבוצתי - שולח כמה מקטעים בבקשה אחת, אבל כל מקטע
   // מנוסח בנפרד מאחורי הקלעים (ראה functions/controllers/report.controller.js).
   // התשובה מגיעה כ-NDJSON (שורת JSON אחת לכל מקטע שמסתיים) כדי לאפשר

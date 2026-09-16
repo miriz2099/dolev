@@ -19,12 +19,15 @@ const AiRephraseField = ({
   disabled = false,
   warning = null,
   onAcknowledgeWarning,
+  allowDraftFromQuestionnaires = false,
 }) => {
   const { currentUser } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState(null); // { text, provider, model }
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState("");
 
   const text = value || "";
   const tooShort = text.trim().length < MIN_CHARS;
@@ -52,6 +55,25 @@ const AiRephraseField = ({
       setError(err.message || "הניסוח נכשל. נסי שוב.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const requestDraftFromQuestionnaires = async () => {
+    if (disabled) return;
+    setDraftLoading(true);
+    setDraftError("");
+    try {
+      const token = await currentUser.getIdToken();
+      const result = await reportService.draftFromQuestionnaires(
+        diagnosisId,
+        sectionId,
+        token,
+      );
+      setSuggestion(result);
+    } catch (err) {
+      setDraftError(err.message || "יצירת הטיוטה נכשלה. נסי שוב.");
+    } finally {
+      setDraftLoading(false);
     }
   };
 
@@ -86,6 +108,25 @@ const AiRephraseField = ({
             <>✨ נסח מחדש</>
           )}
         </button>
+        {allowDraftFromQuestionnaires && (
+          <button
+            type="button"
+            onClick={requestDraftFromQuestionnaires}
+            disabled={disabled || draftLoading || loading || !diagnosisId}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                       bg-indigo-500 text-white hover:bg-indigo-600 transition
+                       disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+          >
+            {draftLoading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                יוצר טיוטה...
+              </>
+            ) : (
+              <>📋 טיוטה מהשאלונים</>
+            )}
+          </button>
+        )}
       </div>
 
       <textarea
@@ -119,6 +160,12 @@ const AiRephraseField = ({
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
           {error}
+        </p>
+      )}
+
+      {draftError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+          {draftError}
         </p>
       )}
 

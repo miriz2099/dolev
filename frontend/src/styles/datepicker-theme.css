@@ -1,0 +1,143 @@
+/* frontend/src/styles/datepicker-theme.css */
+/* עיצוב react-datepicker בהתאמה לפלטת הסגול (purple) של הטופס, RTL ועברית */
+
+.react-datepicker {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: #fff;
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.react-datepicker-popper .react-datepicker__triangle {
+  stroke: #e9d5ff;
+}
+.react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle {
+  fill: #faf5ff;
+  color: #faf5ff;
+}
+.react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle {
+  fill: #fff;
+  color: #fff;
+}
+
+/* כותרת (חודש/שנה) */
+.react-datepicker__header {
+  background-color: #faf5ff;
+  border-bottom: 1px solid #e9d5ff;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-year-header {
+  color: #6b21a8;
+  font-weight: 700;
+}
+
+.react-datepicker__day-name {
+  color: #7e22ce;
+  font-weight: 600;
+}
+
+/* תאים */
+.react-datepicker__day {
+  color: #374151;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.react-datepicker__day:not([aria-disabled="true"]):hover {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border-radius: 8px;
+}
+
+.react-datepicker__day--keyboard-selected,
+.react-datepicker__day--keyboard-selected:not([aria-disabled="true"]):hover {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border-radius: 8px;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--selected:not([aria-disabled="true"]):hover {
+  background-color: #9333ea;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+/* "היום" - מסגרת בלבד, כדי לא להתבלבל עם היום הנבחר */
+.react-datepicker__day--today {
+  font-weight: 700;
+  border: 1px solid #9333ea;
+  border-radius: 8px;
+}
+.react-datepicker__day--today.react-datepicker__day--selected {
+  border-color: transparent;
+}
+
+.react-datepicker__day--disabled {
+  color: #d1d5db;
+}
+
+/* כפתורי ניווט בין חודשים - עיגולים סגולים בהירים */
+.react-datepicker__navigation {
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background-color: #f3e8ff;
+  transition: background-color 0.15s ease;
+}
+.react-datepicker__navigation:hover {
+  background-color: #e9d5ff;
+}
+.react-datepicker__navigation-icon::before {
+  border-color: #6b21a8;
+  border-width: 2px 2px 0 0;
+  width: 7px;
+  height: 7px;
+}
+.react-datepicker__navigation:hover *::before {
+  border-color: #581c87;
+}
+
+/* תצוגת חודש/שנה הניתנים ללחיצה בכותרת */
+.react-datepicker__year-read-view,
+.react-datepicker__month-read-view,
+.react-datepicker__month-year-read-view {
+  color: #6b21a8;
+  font-weight: 600;
+}
+.react-datepicker__year-read-view--down-arrow,
+.react-datepicker__month-read-view--down-arrow,
+.react-datepicker__month-year-read-view--down-arrow {
+  border-color: #6b21a8;
+}
+
+/* רשימת הבחירה הנפתחת של חודש/שנה */
+.react-datepicker__year-dropdown,
+.react-datepicker__month-dropdown,
+.react-datepicker__month-year-dropdown {
+  background-color: #fff;
+  border: 1px solid #e9d5ff;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+}
+.react-datepicker__year-option,
+.react-datepicker__month-option,
+.react-datepicker__month-year-option {
+  color: #374151;
+}
+.react-datepicker__year-option:hover,
+.react-datepicker__month-option:hover,
+.react-datepicker__month-year-option:hover {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
+.react-datepicker__year-option--selected,
+.react-datepicker__month-option--selected,
+.react-datepicker__month-year-option--selected {
+  color: #9333ea;
+}

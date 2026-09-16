@@ -2,8 +2,29 @@ import React, { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import DatePicker, { registerLocale } from "react-datepicker";
+import { he } from "date-fns/locale/he";
+import "react-datepicker/dist/react-datepicker.css";
+import "../styles/datepicker-theme.css";
+
+registerLocale("he", he);
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// המרת מחרוזת YYYY-MM-DD לאובייקט Date מקומי (בלי תלות בטיימזון)
+const parseYMD = (dateString) => {
+  if (!dateString) return null;
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+// המרת אובייקט Date למחרוזת YYYY-MM-DD לפי רכיבים מקומיים (לא toISOString, כדי למנוע היסט יום עקב UTC)
+const formatYMD = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const AddChildModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
@@ -150,13 +171,27 @@ const AddChildModal = ({ isOpen, onClose }) => {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 תאריך לידה
               </label>
-              <input
-                type="date"
-                className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                value={formData.birthDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, birthDate: e.target.value })
+              <DatePicker
+                selected={parseYMD(formData.birthDate)}
+                onChange={(date) =>
+                  setFormData({
+                    ...formData,
+                    birthDate: date ? formatYMD(date) : "",
+                  })
                 }
+                locale="he"
+                calendarStartDay={0}
+                showYearDropdown
+                showMonthDropdown
+                scrollableYearDropdown
+                yearDropdownItemNumber={80}
+                maxDate={new Date()}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="בחר/י תאריך לידה"
+                className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                wrapperClassName="w-full"
+                popperPlacement="bottom"
+                popperProps={{ strategy: "fixed" }}
                 required
               />
             </div>

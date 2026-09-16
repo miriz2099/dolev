@@ -5,6 +5,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import InquiriesList from "../components/InquiriesList";
 import AddParentModal from "../components/AddParentModal";
 import AddChildModal from "../components/AddChildModal"; // 1. ייבוא המודאל החדש
+import { updateInquiryStatus } from "../services/inquiry.service";
 
 const ApproveUsers = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -13,6 +14,10 @@ const ApproveUsers = () => {
   // 2. States לשליטה בשני המודאלים
   const [isParentModalOpen, setIsParentModalOpen] = useState(false);
   const [isChildModalOpen, setIsChildModalOpen] = useState(false);
+
+  // States למילוי מראש של מודל ההורה כשנפתח מתוך פנייה
+  const [parentInitialData, setParentInitialData] = useState(null);
+  const [sourceInquiryId, setSourceInquiryId] = useState(null);
 
   const fetchPending = async () => {
     setLoading(true);
@@ -35,6 +40,38 @@ const ApproveUsers = () => {
   useEffect(() => {
     fetchPending();
   }, []);
+
+  // פתיחת מודל ההורה עם פרטים ממולאים מראש מתוך פנייה
+  const handleAddInquiryAsParent = (inquiry) => {
+    const nameParts = (inquiry.fullname || "").trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ");
+
+    setParentInitialData({
+      firstName,
+      lastName,
+      email: inquiry.email,
+      phone: inquiry.phone,
+    });
+    setSourceInquiryId(inquiry.id);
+    setIsParentModalOpen(true);
+  };
+
+  const handleParentModalClose = () => {
+    setIsParentModalOpen(false);
+    setParentInitialData(null);
+    setSourceInquiryId(null);
+  };
+
+  const handleParentCreatedSuccess = async () => {
+    if (sourceInquiryId) {
+      try {
+        await updateInquiryStatus(sourceInquiryId, "completed");
+      } catch (error) {
+        console.error("Error marking inquiry as completed:", error);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 dir-rtl text-right" dir="rtl">
@@ -71,13 +108,15 @@ const ApproveUsers = () => {
 
       {/* סקציה פניות */}
       <section className="mb-12 bg-white shadow-md rounded-xl p-6 border border-gray-100">
-        <InquiriesList />
+        <InquiriesList onAddAsParent={handleAddInquiryAsParent} />
       </section>
 
       {/* 4. הוספת המודאלים בתחתית הדף */}
       <AddParentModal
         isOpen={isParentModalOpen}
-        onClose={() => setIsParentModalOpen(false)}
+        onClose={handleParentModalClose}
+        initialData={parentInitialData}
+        onSuccess={handleParentCreatedSuccess}
       />
 
       <AddChildModal

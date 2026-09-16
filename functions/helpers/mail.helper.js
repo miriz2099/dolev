@@ -121,4 +121,29 @@ const sendUrgentMessageEmail = async ({
   await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendWelcomeEmail, sendUrgentMessageEmail };
+const sendInquiryReplyEmail = async ({ to, fullname, originalMessage, replyText }) => {
+  const mailOptions = {
+    from: `"מרכז האבחון דולב" <${process.env.SMTP_USER}>`,
+    to,
+    subject: "תגובה לפנייתך – מרכז האבחון דולב",
+    html: `
+      <div dir="rtl" style="font-family: sans-serif; text-align: right; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2>שלום ${fullname},</h2>
+        <p style="font-size: 16px;">קיבלנו את פנייתך למרכז האבחון דולב, ואנו שמחים לחזור אליך עם תגובה.</p>
+        <p style="font-weight: bold; margin-bottom: 6px;">ההודעה ששלחת:</p>
+        <div style="background:#f3f4f6; border:1px solid #e5e7eb; border-radius:12px; padding:16px; margin:0 0 20px 0;">
+          <p style="margin:0; white-space: pre-wrap; color:#1f2937;">${originalMessage}</p>
+        </div>
+        <p style="font-weight: bold; margin-bottom: 6px;">תגובתנו:</p>
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:16px; margin:0 0 20px 0;">
+          <p style="margin:0; white-space: pre-wrap; color:#1f2937; font-weight: 500;">${replyText}</p>
+        </div>
+        <p>בברכה,<br/>צוות מרכז האבחון דולב</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendWelcomeEmail, sendUrgentMessageEmail, sendInquiryReplyEmail };

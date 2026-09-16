@@ -1544,7 +1544,7 @@ const DiagnosisDetails = () => {
                     onClick={() => setIsModalOpen(true)}
                     className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
                   >
-                    שליחת הודעה להור{" "}
+                    שליחת הודעה להורה
                   </button>
                 </div>
               </div>

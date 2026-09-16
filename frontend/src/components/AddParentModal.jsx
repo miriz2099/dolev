@@ -1,19 +1,37 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const AddParentModal = ({ isOpen, onClose }) => {
+const AddParentModal = ({ isOpen, onClose, initialData = null, onSuccess = undefined }) => {
   // 1. הגדרת ה-State חייבת להיות ממש כאן, בתחילת הקומפוננטה
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    password: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // מילוי מראש של הטופס כשנפתח מתוך פנייה, או איפוס כשנפתח כטופס ריק רגיל
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setFormData({
+        firstName: initialData.firstName || "",
+        lastName: initialData.lastName || "",
+        email: initialData.email || "",
+        phone: initialData.phone || "",
+      });
+    } else if (isOpen && !initialData) {
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+      });
+    }
+  }, [isOpen, initialData]);
 
   // 2. תנאי הרינדור חייב לבוא אחרי הגדרת ה-Hooks
   if (!isOpen) return null;
@@ -50,8 +68,8 @@ const AddParentModal = ({ isOpen, onClose }) => {
           lastName: "",
           email: "",
           phone: "",
-          password: "",
         });
+        onSuccess?.();
         onClose();
       } else {
         const errorData = await response.json();
@@ -148,25 +166,6 @@ const AddParentModal = ({ isOpen, onClose }) => {
               }
               required
             />
-          </div>
-
-          {/* שורת סיסמה */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              סיסמה ראשונית למערכת
-            </label>
-            <input
-              type="password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-gray-900 outline-none transition-all"
-              value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
-              required
-            />
-            <p className="text-[10px] text-gray-400 mt-1">
-              הסיסמה חייבת להכיל לפחות 6 תווים.
-            </p>
           </div>
 
           <button

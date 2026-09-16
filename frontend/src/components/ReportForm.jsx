@@ -791,6 +791,7 @@ const SectionRenderer = ({
               onAcknowledgeWarning={
                 onAcknowledgeWarning ? () => onAcknowledgeWarning(section.id) : undefined
               }
+              allowDraftFromQuestionnaires={["referralReason", "familyBackground", "educationalBackground"].includes(section.id)}
             />
           </div>
         </div>

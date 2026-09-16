@@ -39,6 +39,7 @@ const {
   openReportForEditing,
   exportReportToPDF,
   generateReportSection,
+  generateSectionFromQuestionnaires,
   generateReportSectionsBatch,
   checkReportPlausibility,
 } = require("../controllers/report.controller");
@@ -48,6 +49,12 @@ router.post("/draft", verifyToken, saveReportDraft);
 router.post("/submit", verifyToken, submitReport);
 router.get("/", verifyToken, listReports);
 router.post("/ai/rephrase", verifyToken, aiLimiter, generateReportSection);
+router.post(
+  "/ai/draft-from-questionnaires",
+  verifyToken,
+  aiLimiter,
+  generateSectionFromQuestionnaires,
+);
 router.post(
   "/ai/rephrase-batch",
   verifyToken,

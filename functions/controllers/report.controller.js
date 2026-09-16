@@ -1,6 +1,11 @@
 // functions/controllers/report.controller.js
 const { db } = require("../config/firebase");
-const { rephraseSection, checkSectionPlausibility } = require("../services/ai");
+const {
+  rephraseSection,
+  checkSectionPlausibility,
+  draftSectionFromQuestionnaires,
+} = require("../services/ai");
+const { buildQuestionnaireContext } = require("../services/ai/questionnaireContext");
 const { toUserMessage } = require("../services/ai/errors");
 const pdfService = require("../services/pdf.service");
 
@@ -320,6 +325,144 @@ const generateReportSection = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in generateReportSection:", error);
+
+    // AiError נושא status מנורמל; כל השאר -> 500.
+    // ההודעה ללקוח היא תמיד הגרסה הידידותית, לעולם לא הודעת הספק הגולמית.
+    const status = error?.name === "AiError" ? error.status : 500;
+    return res.status(status).json({ error: toUserMessage(error) });
+  }
+};
+
+// מקטעי הדוח שנתמכים ליצירת טיוטה ישירות מהשאלונים (ראו questionnaireContext.js)
+const DRAFTABLE_SECTIONS = ["referralReason", "familyBackground", "educationalBackground"];
+
+// POST /reports/ai/draft-from-questionnaires
+// מחברת טיוטה ראשונית לסעיף בדוח ישירות מתוך תשובות שאלוני ההורים
+// ובית הספר - בנוסף (לא במקום) לניסוח מחדש הרגיל של generateReportSection.
+// ⚠️ התוצאה מוחזרת בלבד ואינה נשמרת - המאבחנת חייבת לאשר אותה.
+const generateSectionFromQuestionnaires = async (req, res) => {
+  try {
+    const { diagnosisId, sectionId } = req.body;
+
+    // --- ולידציה ---
+    if (!diagnosisId || !sectionId) {
+      return res
+        .status(400)
+        .json({ error: "חסרים שדות חובה: diagnosisId, sectionId" });
+    }
+    if (!DRAFTABLE_SECTIONS.includes(sectionId)) {
+      return res
+        .status(400)
+        .json({ error: "סעיף זה אינו נתמך ליצירת טיוטה מהשאלונים" });
+    }
+
+    // --- הרשאה: רק המאבחן בעל האבחון או אדמין ---
+    const access = await getDiagnosisAccess(req.user.uid, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
+
+    // --- טעינת פרטי הילד וההורה עבור שכבת ה-de-identification ---
+    let child = {};
+    let parent = {};
+
+    const childId = access.diagnosis.childId;
+    if (childId) {
+      const childDoc = await db.collection("children").doc(childId).get();
+      if (childDoc.exists) {
+        child = childDoc.data();
+
+        if (child.parentId) {
+          const parentDoc = await db
+            .collection("users")
+            .doc(child.parentId)
+            .get();
+          if (parentDoc.exists) parent = parentDoc.data();
+        }
+      }
+    }
+
+    // --- שליפת שאלון ההורים העדכני ביותר לאבחון הזה ---
+    const parentSnapshot = await db
+      .collection("parent_questionnaires")
+      .where("diagnosisId", "==", diagnosisId)
+      .orderBy("submittedAt", "desc")
+      .limit(1)
+      .get();
+    const parentFormData = parentSnapshot.empty
+      ? {}
+      : parentSnapshot.docs[0].data().formData || {};
+
+    // מגדר הילד/ה (לפי שאלון ההורים) - כדי שהניסוח ישתמש במגדר הדקדוקי הנכון
+    const childGender = parentFormData.gender || null;
+
+    // --- שליפת שאלון בית הספר העדכני ביותר לאבחון הזה ---
+    const schoolSnapshot = await db
+      .collection("school_questionnaires")
+      .where("diagnosisId", "==", diagnosisId)
+      .orderBy("submittedAt", "desc")
+      .limit(1)
+      .get();
+    const schoolFormData = schoolSnapshot.empty
+      ? {}
+      : schoolSnapshot.docs[0].data().formData || {};
+
+    if (
+      Object.keys(parentFormData).length === 0 &&
+      Object.keys(schoolFormData).length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ error: "טרם מולאו שאלונים עבור אבחון זה" });
+    }
+
+    // --- בניית ההקשר המתויג מהשאלונים ---
+    const contextText = buildQuestionnaireContext(
+      sectionId,
+      parentFormData,
+      schoolFormData,
+    );
+
+    if (!contextText) {
+      return res
+        .status(400)
+        .json({ error: "לא נמצא מידע רלוונטי בשאלונים לסעיף זה" });
+    }
+
+    // --- הקריאה בפועל ---
+    const result = await draftSectionFromQuestionnaires({
+      sectionId,
+      contextText,
+      child,
+      parent,
+      childGender,
+    });
+
+    // --- Audit trail (HIPAA): מי, מתי, על איזה מקטע.
+    //     שימי לב: לא שומרים את contextText עצמו, רק מטא-דאטה. ---
+    await db
+      .collection("ai_audit")
+      .add({
+        userId: req.user.uid,
+        diagnosisId,
+        childId: childId || null,
+        sectionId,
+        source: "questionnaires",
+        provider: result.provider,
+        model: result.model,
+        inputChars: contextText.length,
+        usage: result.usage || null,
+        createdAt: new Date().toISOString(),
+      })
+      .catch((err) => console.error("[audit] failed to log AI usage:", err));
+
+    return res.status(200).json({
+      text: result.text,
+      provider: result.provider,
+      model: result.model,
+    });
+  } catch (error) {
+    console.error("Error in generateSectionFromQuestionnaires:", error);
 
     // AiError נושא status מנורמל; כל השאר -> 500.
     // ההודעה ללקוח היא תמיד הגרסה הידידותית, לעולם לא הודעת הספק הגולמית.
@@ -704,6 +847,7 @@ module.exports = {
   submitReport,
   listReports,
   generateReportSection,
+  generateSectionFromQuestionnaires,
   generateReportSectionsBatch,
   checkReportPlausibility,
   getReportById,
