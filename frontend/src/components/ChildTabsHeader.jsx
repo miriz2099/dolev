@@ -52,7 +52,7 @@ const ChildTabsHeader = ({
   // הסדר ב-array הוא הסדר ההגיוני - ה-reverse למטה הופך אותו לתצוגה RTL
   // מימין לשמאל בעברית: פרטי הילד → הודעות → אבחונים → אישורים וטפסים → דוחות
   const tabs = [
-    { id: "reports", label: "צפייה בדוחות", icon: "📊" },
+    { id: "reports", label: "דוחות", icon: "📊" },
 
     { id: "assessments", label: "אבחונים", icon: "🧪" },
     { id: "messages", label: "הודעות חשובות", icon: "🔔" },

@@ -44,7 +44,7 @@ const Layout = () => {
         <Header userName={currentName} />
 
         {/* 3. אזור התוכן המרכזי */}
-        <main className="flex-1 overflow-hidden p-4 md:p-8 flex flex-col items-center">
+        <main className="flex-1 overflow-hidden p-2 md:p-4 flex flex-col items-center">
           <div
             className={`
     w-full 
@@ -53,9 +53,10 @@ const Layout = () => {
     rounded-[2.5rem] 
     shadow-sm 
     border border-gray-100 
-    flex-1 
-    overflow-y-auto 
-    p-6 md:p-12 
+    flex-1
+    min-h-0
+    overflow-y-auto
+    p-6 md:p-12
     no-scrollbar 
     transition-all 
     duration-500

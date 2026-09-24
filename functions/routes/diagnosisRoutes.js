@@ -4,6 +4,7 @@ const {
   createDiagnosis,
   getDiagnosesByChild,
   reassignTherapist,
+  closeDiagnosis,
   getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,
@@ -24,6 +25,9 @@ router.post("/create", verifyToken, createDiagnosis);
 router.get("/child/:childId", verifyToken, getDiagnosesByChild);
 // 🆕 שינוי המאבחן/ת המשויך/ת לאבחון קיים - אדמין בלבד
 router.patch("/:diagnosisId/therapist", verifyAdmin, reassignTherapist);
+// 🆕 סגירה מפורשת של אבחון (לאחר הגשת הדוח) - הבדיקה הפנימית כבר מטפלת
+// בהרשאות אדמין/מטפל, ולכן מספיק verifyToken כאן
+router.patch("/:diagnosisId/close", verifyToken, closeDiagnosis);
 router.get("/:diagnosisId/progress", verifyToken, getDiagnosisProgress);
 router.put("/status/:diagnosisId", verifyToken, updateQuestionnaireStatus);
 router.post(

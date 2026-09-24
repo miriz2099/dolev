@@ -2188,6 +2188,57 @@ const reassignTherapist = async (req, res) => {
   }
 };
 
+// PATCH /diagnoses/:diagnosisId/close
+// סגירה מפורשת של אבחון - רק לאחר שהדוח הוגש (report.status==="completed").
+// זו הפעולה שבפועל חושפת את הדוח להורדת PDF בצד ההורה (ראה ChildDetails.jsx).
+const closeDiagnosis = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagRef = db.collection("diagnoses").doc(diagnosisId);
+    const diagDoc = await diagRef.get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    // בדיקת הרשאה: אדמין או המאבחן/ת המשויך/ת לאבחון בלבד
+    const requesterDoc = await db.collection("users").doc(uid).get();
+    const requesterRole = requesterDoc.exists ? requesterDoc.data().role : null;
+    const isAdmin = requesterRole === "admin";
+    const isOwnerTherapist = diagnosis.therapistId === uid;
+
+    if (!isAdmin && !isOwnerTherapist) {
+      return res.status(403).json({ error: "אין הרשאה לסגור אבחון זה" });
+    }
+
+    // בדיקה קריטית: לא ניתן לסגור לפני שהדוח הסופי הוגש
+    const reportSnapshot = await db
+      .collection("reports")
+      .where("diagnosisId", "==", diagnosisId)
+      .limit(1)
+      .get();
+
+    const report = reportSnapshot.empty ? null : reportSnapshot.docs[0].data();
+    if (!report || report.status !== "completed") {
+      return res
+        .status(400)
+        .json({ error: "יש להגיש את הדוח הסופי לפני סגירת האבחון" });
+    }
+
+    await diagRef.update({
+      closed: true,
+      closedAt: new Date().toISOString(),
+    });
+
+    res.status(200).json({ message: "האבחון נסגר בהצלחה" });
+  } catch (error) {
+    console.error("Error in closeDiagnosis:", error);
+    res.status(500).json({ error: "שגיאת שרת בסגירת האבחון" });
+  }
+};
+
 // GET /diagnoses/:diagnosisId/progress
 // מחשבת "איפה ההורה נמצא" בתהליך האבחון - 5 שלבים כרונולוגיים, נגזרים
 // מ-state קיים (שאלון/הסכמה/תיאום אבחונים/דוח). לא נשמר שום דבר חדש -
@@ -3040,6 +3091,7 @@ module.exports = {
   createDiagnosis,
   getDiagnosesByChild,
   reassignTherapist,
+  closeDiagnosis,
   getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,

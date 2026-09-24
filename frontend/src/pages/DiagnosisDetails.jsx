@@ -1493,6 +1493,7 @@ const DiagnosisDetails = () => {
                 isAdmin={userRole === "admin"}
                 therapistsList={therapistsList}
                 onReassignTherapist={handleReassignTherapist}
+                onDiagnosisClosed={loadDiagnoses}
               />
             )}
           </div>

@@ -9,7 +9,10 @@ const fetchWithAuth = async (url, token, options = {}) => {
       ...options.headers,
     },
   });
-  if (!response.ok) throw new Error("Network response was not ok");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Network response was not ok");
+  }
   return response.json();
 };
 
@@ -47,9 +50,18 @@ const reassignDiagnosisTherapist = async (diagnosisId, newTherapistId, token) =>
   });
 };
 
+// סגירה מפורשת של אבחון - רק לאחר שהדוח הוגש. זו הפעולה שבפועל
+// חושפת את הדוח להורדת PDF בצד ההורה.
+const closeDiagnosis = async (diagnosisId, token) => {
+  return await fetchWithAuth(`${BASE_URL}/diagnoses/${diagnosisId}/close`, token, {
+    method: "PATCH",
+  });
+};
+
 export default {
   submitParentQuestionnaire,
   getActiveDiagnosis,
   createChild,
   reassignDiagnosisTherapist,
+  closeDiagnosis,
 };

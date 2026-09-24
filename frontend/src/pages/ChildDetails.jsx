@@ -1477,6 +1477,7 @@ import messageService from "../services/message.service";
 import therapistService from "../services/therapist.service";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
 import consentFormService from "../services/consentForm.service";
+import reportService from "../services/report.service";
 
 const ChildDetails = () => {
   const { childId } = useParams();
@@ -1498,6 +1499,9 @@ const ChildDetails = () => {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [schoolInvite, setSchoolInvite] = useState(null);
   const [activeDiagnosis, setActiveDiagnosis] = useState(null);
+
+  // 🆕 הורדת דוח PDF (לשונית "דוחות")
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   // 🆕 סרגל התקדמות (להורה בלבד)
   const [diagnosisProgress, setDiagnosisProgress] = useState(null);
@@ -1652,6 +1656,26 @@ const ChildDetails = () => {
       fetchData();
     } catch (err) {
       alert("שגיאה בשליחה");
+    }
+  };
+
+  // 🆕 הורדת דוח PDF - אותה שיטה בדיוק כמו ב-ReportForm.jsx (יצירת לינק זמני מה-Blob)
+  const handleDownloadReport = async () => {
+    try {
+      setDownloadingPDF(true);
+      const token = await currentUser.getIdToken();
+      const blob = await reportService.exportPDF(activeDiagnosis.id, token);
+
+      const link = document.createElement("a");
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `דוח_${childData?.firstName || "מטופל"}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Error downloading report:", err);
+      alert("שגיאה בהורדת הדוח");
+    } finally {
+      setDownloadingPDF(false);
     }
   };
 
@@ -1949,6 +1973,34 @@ const ChildDetails = () => {
           </div>
         );
       }
+
+      case "reports":
+        return (
+          <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 min-h-[400px] text-right animate-fadeIn font-sans">
+            <h2 className="text-3xl font-bold text-gray-800 mb-10 pb-6 border-b border-gray-100">
+              דוחות
+            </h2>
+            {activeDiagnosis?.closed === true ? (
+              <button
+                onClick={handleDownloadReport}
+                disabled={downloadingPDF}
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {downloadingPDF ? "מוריד..." : "📄 הורדת דוח PDF"}
+              </button>
+            ) : activeDiagnosis?.status === "הושלם" ? (
+              <p className="text-gray-400">
+                הדוח מוכן אך טרם ניתן להורדה - הוא יהיה זמין לאחר שהמאבחן/ת
+                יסגור/תסגור את האבחון באופן רשמי.
+              </p>
+            ) : (
+              <p className="text-gray-400">
+                הדוח עדיין בתהליך הכנה ויהיה זמין להורדה לאחר שיוגש על ידי
+                המאבחן/ת.
+              </p>
+            )}
+          </div>
+        );
 
       default:
         return null;

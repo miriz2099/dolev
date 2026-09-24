@@ -540,6 +540,7 @@ import SchoolSurveyView from "./SchoolSurveyView"; // קומפוננטה חדש�
 import GenericMessageModal from "./GenericMessageModal";
 import { useAuth } from "../contexts/AuthContext";
 import ReportForm from "./ReportForm";
+import childService from "../services/child.service";
 
 const DiagnosisView = ({
   diagnosis,
@@ -552,6 +553,7 @@ const DiagnosisView = ({
   therapistsList = [],
   onReassignTherapist,
   childData,
+  onDiagnosisClosed,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
 
@@ -560,6 +562,9 @@ const DiagnosisView = ({
   const [selectedNewTherapistId, setSelectedNewTherapistId] = useState(
     diagnosis?.therapistId || "",
   );
+
+  // 🆕 סגירה מפורשת של האבחון (רק לאחר הגשת הדוח הסופי)
+  const [closing, setClosing] = useState(false);
 
   // ניהול צפייה בשאלונים
   const [currentlyviewing, setCurrentlyViewing] = useState("parent"); // 'parent' או 'school'
@@ -679,6 +684,21 @@ const DiagnosisView = ({
       await onReassignTherapist(diagnosis.id, selectedNewTherapistId);
     } finally {
       setReassigning(false);
+    }
+  };
+
+  // 🆕 סגירה מפורשת של האבחון - זו הפעולה שבפועל חושפת את הדוח להורדת PDF בצד ההורה
+  const handleCloseDiagnosis = async () => {
+    setClosing(true);
+    try {
+      const token = await currentUser.getIdToken();
+      await childService.closeDiagnosis(diagnosis.id, token);
+      alert("האבחון נסגר בהצלחה");
+      onDiagnosisClosed?.();
+    } catch (err) {
+      alert(err.message || "שגיאה בסגירת האבחון");
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -1028,12 +1048,34 @@ const DiagnosisView = ({
           </div>
         </div>
 
-        <button
-          onClick={handleDeleteDiagnosis}
-          className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm"
-        >
-          🗑️ מחק אבחון
-        </button>
+        <div className="flex items-center gap-3">
+          {/* 🆕 סגירה מפורשת של האבחון - זו הפעולה שחושפת את הדוח להורדת PDF בצד ההורה */}
+          {diagnosis.closed ? (
+            <span className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 font-bold px-5 py-2.5 rounded-2xl">
+              אבחון סגור ✓
+            </span>
+          ) : (
+            <button
+              onClick={handleCloseDiagnosis}
+              disabled={closing || diagnosis.status !== "הושלם"}
+              title={
+                diagnosis.status !== "הושלם"
+                  ? "יש להגיש את הדוח הסופי לפני סגירת האבחון"
+                  : undefined
+              }
+              className="flex items-center gap-2 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+            >
+              {closing ? "סוגר..." : "🔒 סגור אבחון"}
+            </button>
+          )}
+
+          <button
+            onClick={handleDeleteDiagnosis}
+            className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm"
+          >
+            🗑️ מחק אבחון
+          </button>
+        </div>
       </div>
 
       {/* 🆕 שינוי מאבחן/ת - אדמין בלבד */}

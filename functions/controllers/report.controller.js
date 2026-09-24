@@ -814,8 +814,19 @@ const exportReportToPDF = async (req, res) => {
     const reportDoc = snapshot.docs[0];
     const reportData = reportDoc.data();
 
-    // Security Check
-    if (req.user.role !== "admin" && reportData.therapistId !== req.user.uid) {
+    // Security Check - אדמין, המאבחן/ת הבעלים, או ההורה (רק אם הדוח כבר הוגש)
+    const isAdmin = req.user.role === "admin";
+    const isOwnerTherapist = reportData.therapistId === req.user.uid;
+
+    let isParentAllowed = false;
+    if (!isAdmin && !isOwnerTherapist && reportData.status === "completed") {
+      const childDoc = await db.collection("children").doc(reportData.childId).get();
+      if (childDoc.exists && childDoc.data().parentId === req.user.uid) {
+        isParentAllowed = true;
+      }
+    }
+
+    if (!isAdmin && !isOwnerTherapist && !isParentAllowed) {
       return res
         .status(403)
         .json({ error: "Unauthorized to export this report" });
