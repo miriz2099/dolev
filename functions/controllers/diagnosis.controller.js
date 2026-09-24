@@ -2167,10 +2167,19 @@ const reassignTherapist = async (req, res) => {
       return res.status(400).json({ error: "המשתמש שנבחר אינו מאבחן/ת תקין/ה" });
     }
 
-    await diagRef.update({
+    // 🆕 מעדכנים גם את מסמך הילד/ה עצמו, כדי שהמאבחן/ת החדש/ה יראה/תראה
+    // את המטופל/ת ברשימות שלו/ה (למשל "המטופלים שלי") - יחד עם האבחון,
+    // באופן אטומי (אם אחד נכשל, שניהם לא יתעדכנו)
+    const { childId } = diagDoc.data();
+    const childRef = db.collection("children").doc(childId);
+
+    const batch = db.batch();
+    batch.update(diagRef, {
       therapistId: newTherapistId,
       updatedAt: new Date().toISOString(),
     });
+    batch.update(childRef, { therapistId: newTherapistId });
+    await batch.commit();
 
     res.status(200).json({ message: "המאבחן/ת עודכן/ה בהצלחה" });
   } catch (error) {

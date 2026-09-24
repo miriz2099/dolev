@@ -104,7 +104,11 @@ const getChildById = async (req, res) => {
       childData.parentId !== IdFromToken &&
       childData.therapistId !== IdFromToken
     ) {
-      return res.status(403).json({ error: "אין הרשאה לצפות במידע זה" });
+      // בדיקה אם המבקש הוא אדמין
+      const requesterDoc = await db.collection("users").doc(IdFromToken).get();
+      if (!requesterDoc.exists || requesterDoc.data().role !== "admin") {
+        return res.status(403).json({ error: "אין הרשאה לצפות במידע זה" });
+      }
     }
 
     // 3. שליפת שם המטפל ממסמך המשתמשים (users)
