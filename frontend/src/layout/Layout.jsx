@@ -48,7 +48,7 @@ const Layout = () => {
           <div
             className={`
     w-full 
-    ${showSlider ? "max-w-6xl" : "max-w-[95%]"} 
+    ${showSlider ? "max-w-[1600px]" : "max-w-[95%]"}
     bg-white 
     rounded-[2.5rem] 
     shadow-sm 

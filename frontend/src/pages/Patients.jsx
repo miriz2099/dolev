@@ -49,7 +49,7 @@ const Patients = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen font-sans text-right" dir="rtl">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* Header Section */}
         <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
