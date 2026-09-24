@@ -62,7 +62,7 @@ const Reports = () => {
   if (selectedDiagnosis) {
     return (
       <div className="p-8 bg-[#F8FAFC] min-h-screen" dir="rtl">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <button
             onClick={() => setSelectedDiagnosis(null)}
             className="text-gray-400 hover:text-blue-600 font-medium flex items-center gap-2 mb-6"

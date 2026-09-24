@@ -74,7 +74,7 @@ const FamilyManagement = () => {
   if (loading && parents.length === 0) {
     return (
       <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-        <div className="max-w-5xl mx-auto animate-pulse space-y-6">
+        <div className="max-w-[1600px] mx-auto animate-pulse space-y-6">
           <div className="h-12 bg-gray-200 rounded-2xl w-1/3"></div>
           <div className="h-96 bg-gray-200 rounded-3xl"></div>
         </div>
@@ -84,7 +84,7 @@ const FamilyManagement = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* כותרת */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">

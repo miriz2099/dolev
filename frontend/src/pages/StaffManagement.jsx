@@ -352,7 +352,7 @@ const StaffManagement = () => {
   if (loading && staff.length === 0) {
     return (
       <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="animate-pulse space-y-6">
             <div className="h-12 bg-gray-200 rounded-2xl w-1/3"></div>
             <div className="grid grid-cols-3 gap-4">
@@ -369,7 +369,7 @@ const StaffManagement = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* כותרת */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>

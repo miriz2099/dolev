@@ -1964,7 +1964,7 @@ const ChildDetails = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-7xl mx-auto flex justify-start mb-6">
+      <div className="max-w-[1600px] mx-auto flex justify-start mb-6">
         <button
           onClick={() =>
             showQuestionnaire ? setShowQuestionnaire(false) : navigate(-1)
@@ -1975,7 +1975,7 @@ const ChildDetails = () => {
         </button>
       </div>
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {!showQuestionnaire && userRole === "patient" && diagnosisProgress && (
           <DiagnosisProgressStepper progress={diagnosisProgress} />
         )}

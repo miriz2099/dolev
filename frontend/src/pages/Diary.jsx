@@ -2369,7 +2369,7 @@ const Diary = () => {
   }
 `}</style>
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         <header className="mb-6">
           <h1 className="text-3xl font-bold text-gray-800">לוח שנה</h1>
           <p className="text-gray-500 mt-1 text-sm">

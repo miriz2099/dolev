@@ -1489,6 +1489,7 @@ const DiagnosisDetails = () => {
                 }}
                 consentForm={consentForm}
                 onViewConsentForm={() => setIsConsentViewerOpen(true)}
+                childData={childData}
                 isAdmin={userRole === "admin"}
                 therapistsList={therapistsList}
                 onReassignTherapist={handleReassignTherapist}
@@ -1617,7 +1618,7 @@ const DiagnosisDetails = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         <div className="flex justify-start mb-8">
           <button
             onClick={() => navigate("/patients")}

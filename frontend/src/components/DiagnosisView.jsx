@@ -539,8 +539,7 @@ import SchoolSurveyTab from "./SchoolSurveyTab"; // הקומפוננטה שבנ�
 import SchoolSurveyView from "./SchoolSurveyView"; // קומפוננטה חדשה לתצוגת שאלון בית ספר
 import GenericMessageModal from "./GenericMessageModal";
 import { useAuth } from "../contexts/AuthContext";
-
-import RequiredAssessmentsManager from "./RequiredAssessmentsManager";
+import ReportForm from "./ReportForm";
 
 const DiagnosisView = ({
   diagnosis,
@@ -552,6 +551,7 @@ const DiagnosisView = ({
   isAdmin = false,
   therapistsList = [],
   onReassignTherapist,
+  childData,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
 
@@ -575,8 +575,6 @@ const DiagnosisView = ({
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const { currentUser } = useAuth();
 
-  const [currentDiagnosis, setCurrentDiagnosis] = useState(diagnosis);
-
   // טעינת שאלון הורים
   useEffect(() => {
     if (activeSubTab === "questionnaires" && currentStatus === "נשלח") {
@@ -590,20 +588,6 @@ const DiagnosisView = ({
       fetchSchoolAnswers();
     }
   }, [activeSubTab]);
-
-  const refreshDiagnosis = async () => {
-    try {
-      const token = await currentUser.getIdToken();
-      const allDiagnoses = await therapistService.getDiagnoses(
-        diagnosis.childId,
-        token,
-      );
-      const updated = allDiagnoses.find((d) => d.id === diagnosis.id);
-      if (updated) setCurrentDiagnosis(updated);
-    } catch (err) {
-      console.error("Error refreshing diagnosis:", err);
-    }
-  };
 
   const fetchParentAnswers = async () => {
     try {
@@ -1012,17 +996,10 @@ const DiagnosisView = ({
         );
       case "report":
         return (
-          <div className="p-20 text-center text-gray-400">
-            הנפקת דוח - בקרוב
-          </div>
-        );
-
-      case "assessments":
-        return (
-          <RequiredAssessmentsManager
-            diagnosisId={currentDiagnosis.id}
-            assessments={currentDiagnosis.requiredAssessments || []}
-            onChange={refreshDiagnosis}
+          <ReportForm
+            diagnosisId={diagnosis.id}
+            childData={childData}
+            onClose={() => setActiveSubTab("questionnaires")}
           />
         );
 
@@ -1095,7 +1072,6 @@ const DiagnosisView = ({
         <div className="flex gap-2 bg-gray-100/60 p-1.5 rounded-2xl w-fit">
           {[
             { id: "questionnaires", label: "שאלונים", icon: "📋" },
-            { id: "assessments", label: "אבחונים", icon: "🧪" }, // 🆕
             { id: "report", label: "הנפקת דוח", icon: "📄" },
           ].map((tab) => (
             <button
