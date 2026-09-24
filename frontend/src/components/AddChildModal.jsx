@@ -26,7 +26,7 @@ const formatYMD = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const AddChildModal = ({ isOpen, onClose }) => {
+const AddChildModal = ({ isOpen, onClose, initialParentId = null }) => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -45,6 +45,12 @@ const AddChildModal = ({ isOpen, onClose }) => {
   // שליפת הורים ומטפלים מה-Firestore
   useEffect(() => {
     if (isOpen) {
+      // אם ההורה כבר ידוע מראש (למשל מכרטיס ההורה בדף ניהול המשפחות) - קובעים מיד,
+      // עדיין ממשיכים לשלוף את רשימת ההורים למטה כדי להציג את שמו
+      if (initialParentId) {
+        setFormData((prev) => ({ ...prev, parentId: initialParentId }));
+      }
+
       const fetchLists = async () => {
         setLoadingLists(true);
         try {
@@ -72,7 +78,7 @@ const AddChildModal = ({ isOpen, onClose }) => {
       };
       fetchLists();
     }
-  }, [isOpen]);
+  }, [isOpen, initialParentId]);
 
   if (!isOpen) return null;
 
@@ -104,7 +110,8 @@ const AddChildModal = ({ isOpen, onClose }) => {
           lastName: "",
           idNumber: "",
           birthDate: "",
-          parentId: "",
+          // אם ההורה נקבע מראש - נשאר קבוע גם אחרי איפוס, למקרה שהמודל נפתח שוב לאותו הורה
+          parentId: initialParentId || "",
           therapistId: "",
         });
         onClose();
@@ -192,6 +199,8 @@ const AddChildModal = ({ isOpen, onClose }) => {
                 wrapperClassName="w-full"
                 popperPlacement="bottom"
                 popperProps={{ strategy: "fixed" }}
+                portalId="datepicker-portal"
+                popperClassName="z-[10001]"
                 required
               />
             </div>
@@ -199,26 +208,40 @@ const AddChildModal = ({ isOpen, onClose }) => {
 
           <hr className="my-2" />
 
-          {/* בחירת הורה מרשימה */}
+          {/* בחירת הורה מרשימה - או תצוגה קבועה אם ההורה כבר נקבע מראש */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               בחירת הורה
             </label>
-            <select
-              className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
-              value={formData.parentId}
-              onChange={(e) =>
-                setFormData({ ...formData, parentId: e.target.value })
-              }
-              required
-            >
-              <option value="">-- בחרי הורה מהרשימה --</option>
-              {parents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.firstName} {p.lastName} ({p.phone})
-                </option>
-              ))}
-            </select>
+            {initialParentId ? (
+              <div className="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-700">
+                הורה:{" "}
+                {(() => {
+                  const selectedParent = parents.find(
+                    (p) => p.id === initialParentId,
+                  );
+                  return selectedParent
+                    ? `${selectedParent.firstName} ${selectedParent.lastName}`
+                    : "טוען...";
+                })()}
+              </div>
+            ) : (
+              <select
+                className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
+                value={formData.parentId}
+                onChange={(e) =>
+                  setFormData({ ...formData, parentId: e.target.value })
+                }
+                required
+              >
+                <option value="">-- בחרי הורה מהרשימה --</option>
+                {parents.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.firstName} {p.lastName} ({p.phone})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* בחירת מטפל מרשימה */}

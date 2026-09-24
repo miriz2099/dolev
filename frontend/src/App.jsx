@@ -10,7 +10,6 @@ import Pay from "./pages/Pay";
 import Type from "./pages/Type";
 import Diary from "./pages/Diary";
 import Reports from "./pages/Reports";
-import Diagnos from "./pages/Diagnos";
 import Isur from "./pages/Isur";
 import TherapistInbox from "./pages/TherapistInbox";
 import ApproveUsers from "./pages/ApproveUsers";
@@ -140,14 +139,6 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["therapist", "admin"]}>
                 <DiagnosisDetails />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="diagnos"
-            element={
-              <ProtectedRoute allowedRoles={["therapist", "admin"]}>
-                <Diagnos />
               </ProtectedRoute>
             }
           />

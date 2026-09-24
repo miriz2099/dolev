@@ -130,10 +130,27 @@ exports.getFamilies = async (req, res) => {
 
     const childrenSnap = await db.collection("children").get();
 
+    // שליפת כל המטפלים (אותה הגדרה בדיוק כמו ב-AddChildModal.jsx: therapist/admin)
+    const therapistsSnap = await db
+      .collection("users")
+      .where("role", "in", ["therapist", "admin"])
+      .get();
+
+    // מפה של מזהה מטפל -> שם, לצירוף שם המאבחן/ת לכל ילד
+    const therapistsMap = {};
+    therapistsSnap.forEach((doc) => {
+      const t = doc.data();
+      therapistsMap[doc.id] = { firstName: t.firstName || "", lastName: t.lastName || "" };
+    });
+
     // קיבוץ הילדים לפי parentId
     const childrenByParent = {};
     childrenSnap.forEach((doc) => {
       const child = { id: doc.id, ...doc.data() };
+      // שם המאבחן/ת המשויך לילד - null אם אין therapistId תואם, כדי שהפרונט יידע להציג "לא שויך"
+      child.therapistName = therapistsMap[child.therapistId]
+        ? `${therapistsMap[child.therapistId].firstName} ${therapistsMap[child.therapistId].lastName}`
+        : null;
       if (!childrenByParent[child.parentId]) {
         childrenByParent[child.parentId] = [];
       }

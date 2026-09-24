@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { getFamilies, deleteParent, deleteChild } from "../services/admin.service";
+import AddChildModal from "../components/AddChildModal";
 
 // ניהול הורים ומטופלים (אדמין) - מחיקה מדורגת (cascade).
 // קריאת הנתונים נעשית ישירות מול Firestore (כמו StaffManagement),
@@ -12,6 +13,8 @@ const FamilyManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   // deleteTarget: { type: "parent" | "child", entity }
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // addChildForParent: אובייקט ההורה שעבורו פותחים את מודאל הוספת הילד/ה
+  const [addChildForParent, setAddChildForParent] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -135,14 +138,22 @@ const FamilyManagement = () => {
                         {kids.length} ילדים
                       </span>
                     </div>
-                    <button
-                      onClick={() =>
-                        setDeleteTarget({ type: "parent", entity: parent })
-                      }
-                      className="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all text-sm"
-                    >
-                      🗑️ מחק הורה
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAddChildForParent(parent)}
+                        className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-lg font-semibold hover:bg-emerald-100 transition-all text-sm"
+                      >
+                        ➕ הוסף ילד/ה
+                      </button>
+                      <button
+                        onClick={() =>
+                          setDeleteTarget({ type: "parent", entity: parent })
+                        }
+                        className="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all text-sm"
+                      >
+                        🗑️ מחק הורה
+                      </button>
+                    </div>
                   </div>
 
                   {/* ילדי ההורה */}
@@ -151,12 +162,23 @@ const FamilyManagement = () => {
                       {kids.map((child) => (
                         <li
                           key={child.id}
-                          className="flex items-center justify-between px-5 py-3 pr-16"
+                          className="flex items-center justify-between px-5 py-3 pr-16 bg-purple-50/30 hover:bg-purple-100/50 transition-colors"
                         >
-                          <span className="text-gray-700">
-                            👤 {child.firstName} {child.lastName}
+                          <span className="text-gray-700 flex items-center flex-wrap gap-2">
+                            <span>
+                              👤 {child.firstName} {child.lastName}
+                            </span>
+                            {child.therapistName ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+                                מאבחן/ת: {child.therapistName}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                                לא שויך מאבחן/ת
+                              </span>
+                            )}
                             {child.idNumber && (
-                              <span className="text-gray-400 text-sm mr-2">
+                              <span className="text-gray-400 text-sm">
                                 (#{child.idNumber})
                               </span>
                             )}
@@ -243,6 +265,18 @@ const FamilyManagement = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* מודאל הוספת ילד/ה - נפתח עם ההורה כבר קבוע מראש */}
+        {addChildForParent && (
+          <AddChildModal
+            isOpen={true}
+            initialParentId={addChildForParent.id}
+            onClose={() => {
+              setAddChildForParent(null);
+              fetchData(); // רענון הרשימה כדי שהילד/ה החדש/ה יופיע מיד
+            }}
+          />
         )}
       </div>
     </div>

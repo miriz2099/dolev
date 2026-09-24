@@ -1,5 +1,5 @@
 // export default ApproveUsers;
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import InquiriesList from "../components/InquiriesList";
@@ -18,6 +18,14 @@ const ApproveUsers = () => {
   // States למילוי מראש של מודל ההורה כשנפתח מתוך פנייה
   const [parentInitialData, setParentInitialData] = useState(null);
   const [sourceInquiryId, setSourceInquiryId] = useState(null);
+
+  // State לבחירת מה לעשות בפנייה המקורית אחרי יצירת ההורה בהצלחה
+  const [showInquiryStatusChoice, setShowInquiryStatusChoice] = useState(false);
+
+  // שומר את מזהה הפנייה ברגע ההצלחה - כי handleParentModalClose (שנקרא
+  // מיד אחרי onSuccess ב-AddParentModal) מאפס את sourceInquiryId, לפני
+  // שהמנהל מספיק לבחור סטטוס בחלון החדש
+  const capturedInquiryIdRef = useRef(null);
 
   const fetchPending = async () => {
     setLoading(true);
@@ -47,12 +55,24 @@ const ApproveUsers = () => {
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ");
 
-    setParentInitialData({
+    const parentData = {
       firstName,
       lastName,
       email: inquiry.email,
       phone: inquiry.phone,
-    });
+    };
+
+    // 🆕 אם בפנייה יש גם פרטי ילד/ה - נעביר אותם הלאה למילוי אוטומטי
+    // של הסעיף האופציונלי ב-AddParentModal
+    if (inquiry.childFirstName && inquiry.childLastName) {
+      parentData.child = {
+        firstName: inquiry.childFirstName,
+        lastName: inquiry.childLastName,
+        birthDate: inquiry.childBirthDate || "",
+      };
+    }
+
+    setParentInitialData(parentData);
     setSourceInquiryId(inquiry.id);
     setIsParentModalOpen(true);
   };
@@ -65,12 +85,24 @@ const ApproveUsers = () => {
 
   const handleParentCreatedSuccess = async () => {
     if (sourceInquiryId) {
+      capturedInquiryIdRef.current = sourceInquiryId;
+      setShowInquiryStatusChoice(true);
+    }
+  };
+
+  // בחירת המנהל מה לעשות בפנייה המקורית אחרי יצירת ההורה בהצלחה
+  const handleInquiryStatusChoice = async (status) => {
+    if (capturedInquiryIdRef.current) {
       try {
-        await updateInquiryStatus(sourceInquiryId, "completed");
+        await updateInquiryStatus(capturedInquiryIdRef.current, status);
       } catch (error) {
-        console.error("Error marking inquiry as completed:", error);
+        console.error("Error updating inquiry status:", error);
       }
     }
+    setShowInquiryStatusChoice(false);
+    setParentInitialData(null);
+    setSourceInquiryId(null);
+    capturedInquiryIdRef.current = null;
   };
 
   return (
@@ -123,6 +155,34 @@ const ApproveUsers = () => {
         isOpen={isChildModalOpen}
         onClose={() => setIsChildModalOpen(false)}
       />
+
+      {/* בחירת סטטוס לפנייה המקורית אחרי יצירת הורה בהצלחה מתוכה */}
+      {showInquiryStatusChoice && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          dir="rtl"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <h3 className="text-lg font-bold text-gray-800 mb-5">
+              ההורה נוצר בהצלחה! מה לעשות עם הפנייה המקורית?
+            </h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleInquiryStatusChoice("in-progress")}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-sm"
+              >
+                סמן כבטיפול
+              </button>
+              <button
+                onClick={() => handleInquiryStatusChoice("completed")}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 text-sm"
+              >
+                סמן כטופל
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

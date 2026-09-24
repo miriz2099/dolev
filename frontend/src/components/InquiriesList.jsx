@@ -391,7 +391,7 @@ const InquiriesList = ({ onAddAsParent }) => {
             className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6"
           >
             <h3 className="text-lg font-bold text-gray-900 mb-4">
-              מענה לפנייתה של {replyingTo.fullname}
+              מענה לפנייה של {replyingTo.fullname}
             </h3>
 
             <p className="text-xs font-bold text-gray-500 mb-1">

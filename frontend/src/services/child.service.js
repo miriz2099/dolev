@@ -30,7 +30,17 @@ const getActiveDiagnosis = async (childId, token) => {
   return await fetchWithAuth(`${BASE_URL}/diagnoses/child/${childId}`, token);
 };
 
+// יצירת פרופיל ילד/ה חדש/ה - משמש גם מ-AddChildModal (בעתיד) וגם מהזרימה
+// האופציונלית של הוספת ילד/ה מיד בעת יצירת הורה חדש
+const createChild = async (childData, token) => {
+  return await fetchWithAuth(`${BASE_URL}/children/create`, token, {
+    method: "POST",
+    body: JSON.stringify(childData),
+  });
+};
+
 export default {
   submitParentQuestionnaire,
   getActiveDiagnosis,
+  createChild,
 };

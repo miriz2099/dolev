@@ -2,6 +2,7 @@
 const { db } = require("../config/firebase");
 const { generateChildId } = require("../helpers/childId.helper");
 const { deleteChildCascade } = require("../helpers/cascade.helper");
+const { openInitialDiagnosis } = require("../services/diagnosisCreation.service");
 
 const createChild = async (req, res) => {
   try {
@@ -31,10 +32,29 @@ const createChild = async (req, res) => {
 
     const docRef = await db.collection("children").add(newChild);
 
+    // 🆕 פתיחה אוטומטית של אבחון ראשוני מיד עם יצירת המטופל/ת -
+    // כדי לחסוך צעד נוסף, מבלי לפגוע ביכולת לפתוח אבחון נוסף ידנית בהמשך.
+    let diagnosisId = null;
+    let diagnosisWarning = null;
+    try {
+      const opened = await openInitialDiagnosis({
+        childId: docRef.id,
+        childData: newChild,
+        therapistId,
+      });
+      diagnosisId = opened.diagnosisId;
+    } catch (diagError) {
+      console.error("Error auto-opening initial diagnosis:", diagError);
+      diagnosisWarning =
+        "המטופל/ת נוצר/ה בהצלחה, אך פתיחת האבחון הראשוני נכשלה. ניתן לפתוח אבחון ידנית.";
+    }
+
     res.status(201).json({
       message: "Child profile created successfully",
       id: docRef.id,
       idNumber, // ← מחזירים גם את ה-ID החדש למאבחן
+      diagnosisId,
+      diagnosisWarning,
     });
   } catch (error) {
     console.error("Error creating child profile:", error);

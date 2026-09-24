@@ -5,7 +5,6 @@ const AddStaffForm = ({ onAdd, onCancel }) => {
     firstName: "",
     lastName: "",
     email: "",
-    password: "",
     phone: "",
     role: "therapist",
   });
@@ -97,22 +96,6 @@ const AddStaffForm = ({ onAdd, onCancel }) => {
                 required
               />
             </div>
-          </div>
-
-          {/* סיסמה */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              סיסמה
-            </label>
-            <input
-              type="password"
-              className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-              value={newMember.password}
-              onChange={(e) =>
-                setNewMember({ ...newMember, password: e.target.value })
-              }
-              required
-            />
           </div>
 
           <hr className="my-2" />

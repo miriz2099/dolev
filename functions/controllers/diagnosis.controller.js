@@ -1793,6 +1793,7 @@
 const { db } = require("../config/firebase");
 const { deleteDiagnosisCascade } = require("../helpers/cascade.helper");
 const pdfService = require("../services/pdf.service");
+const { openInitialDiagnosis } = require("../services/diagnosisCreation.service");
 
 const SLOT_STEP_MINUTES = 30;
 
@@ -2082,75 +2083,16 @@ const createDiagnosis = async (req, res) => {
       return res.status(404).json({ error: "Child not found" });
     const childData = childDoc.data();
 
-    const batch = db.batch();
-
-    // 1. יצירת ה-diagnosis
-    const diagRef = db.collection("diagnoses").doc();
-    batch.set(diagRef, {
+    const { diagnosisId, consentFormId } = await openInitialDiagnosis({
       childId,
+      childData,
       therapistId,
-      status: "בתהליך",
-      parentQuestionnaireStatus: "פתוח",
-      consentFormStatus: "pending", // 🆕 סטטוס טופס ההסכמה
-      createdAt: new Date().toISOString(),
     });
 
-    // 2. עדכון הילד - פתיחת מילוי שאלון
-    const childRef = db.collection("children").doc(childId);
-    batch.update(childRef, { canFillQuestionnaire: true });
-
-    // 3. הודעה אוטומטית להורה - עדכון לכלול גם הזכרה של טופס ההסכמה
-    const msgRef = db.collection("messages").doc();
-    batch.set(msgRef, {
-      senderId: therapistId,
-      receiverId: childData.parentId,
-      childId: childId,
-      text: `שלום, פתחתי תהליך אבחון עבור ${childData.firstName}. נא להיכנס ללשונית "אישורים וטפסים" ולמלא את שאלון ההורים ואת טופס ההסכמה לאבחון. בהצלחה!`,
-      createdAt: new Date().toISOString(),
-      read: false,
-    });
-
-    // 🆕 4. יצירה אוטומטית של טופס הסכמה ריק
-    const consentRef = db.collection("consent_forms").doc();
-    batch.set(consentRef, {
-      childId,
-      diagnosisId: diagRef.id,
-      therapistId,
-      registeredParentId: childData.parentId,
-
-      // snapshot של פרטי הילד מהזמן של היצירה
-      childInfo: {
-        fullName: `${childData.firstName} ${childData.lastName}`,
-        idNumber: childData.idNumber || "",
-        birthDate: childData.birthDate || "",
-        schoolOrGarden: "", // ימולא ע"י ההורה בעת החתימה
-      },
-
-      // סטטוס כללי
-      status: "pending", // pending | partially_signed | fully_signed
-
-      // שני הורים - בהתחלה אף אחד לא חתום ואין הורה שני מוגדר
-      parents: [
-        {
-          role: "registered",
-          name: "", // ימולא בעת החתימה
-          email: "", // ימולא אוטומטית מההורה הרשום
-          signed: false,
-          signedAt: null,
-          signature: null,
-        },
-        // הורה שני יתווסף רק אם ההורה הראשון יזין את הפרטים שלו
-      ],
-
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await batch.commit();
     res.status(201).json({
       message: "Diagnosis opened, notification sent, consent form created",
-      diagnosisId: diagRef.id,
-      consentFormId: consentRef.id,
+      diagnosisId,
+      consentFormId,
     });
   } catch (error) {
     console.error("Error in createDiagnosis:", error);
