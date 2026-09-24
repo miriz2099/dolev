@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { getFamilies, deleteParent, deleteChild } from "../services/admin.service";
 import AddChildModal from "../components/AddChildModal";
 
@@ -6,6 +7,7 @@ import AddChildModal from "../components/AddChildModal";
 // קריאת הנתונים נעשית ישירות מול Firestore (כמו StaffManagement),
 // אך המחיקה עוברת דרך ה-Backend כדי לבצע את כל המחיקות המקושרות.
 const FamilyManagement = () => {
+  const navigate = useNavigate();
   const [parents, setParents] = useState([]);
   const [childrenByParent, setChildrenByParent] = useState({});
   const [loading, setLoading] = useState(true);
@@ -183,14 +185,24 @@ const FamilyManagement = () => {
                               </span>
                             )}
                           </span>
-                          <button
-                            onClick={() =>
-                              setDeleteTarget({ type: "child", entity: child })
-                            }
-                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all text-xs"
-                          >
-                            🗑️ מחק מטופל
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                navigate(`/therapist/child/${child.id}`)
+                              }
+                              className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-semibold hover:bg-blue-100 transition-all text-xs"
+                            >
+                              📁 כניסה לתיק האבחון
+                            </button>
+                            <button
+                              onClick={() =>
+                                setDeleteTarget({ type: "child", entity: child })
+                              }
+                              className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-all text-xs"
+                            >
+                              🗑️ מחק מטופל
+                            </button>
+                          </div>
                         </li>
                       ))}
                     </ul>

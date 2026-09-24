@@ -39,8 +39,17 @@ const createChild = async (childData, token) => {
   });
 };
 
+// שינוי המאבחן/ת המשויך/ת לאבחון קיים - אדמין בלבד
+const reassignDiagnosisTherapist = async (diagnosisId, newTherapistId, token) => {
+  return await fetchWithAuth(`${BASE_URL}/diagnoses/${diagnosisId}/therapist`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ newTherapistId }),
+  });
+};
+
 export default {
   submitParentQuestionnaire,
   getActiveDiagnosis,
   createChild,
+  reassignDiagnosisTherapist,
 };

@@ -549,8 +549,17 @@ const DiagnosisView = ({
   onDeleted,
   consentForm,
   onViewConsentForm,
+  isAdmin = false,
+  therapistsList = [],
+  onReassignTherapist,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
+
+  // 🆕 שינוי מאבחן/ת (אדמין בלבד)
+  const [reassigning, setReassigning] = useState(false);
+  const [selectedNewTherapistId, setSelectedNewTherapistId] = useState(
+    diagnosis?.therapistId || "",
+  );
 
   // ניהול צפייה בשאלונים
   const [currentlyviewing, setCurrentlyViewing] = useState("parent"); // 'parent' או 'school'
@@ -675,6 +684,17 @@ const DiagnosisView = ({
     } catch (err) {
       console.error("Error deleting diagnosis:", err);
       alert("שגיאה במחיקת האבחון");
+    }
+  };
+
+  // 🆕 שינוי המאבחן/ת המשויך/ת לאבחון (אדמין בלבד)
+  const handleReassignClick = async () => {
+    if (selectedNewTherapistId === diagnosis.therapistId) return;
+    setReassigning(true);
+    try {
+      await onReassignTherapist(diagnosis.id, selectedNewTherapistId);
+    } finally {
+      setReassigning(false);
     }
   };
 
@@ -1038,6 +1058,38 @@ const DiagnosisView = ({
           🗑️ מחק אבחון
         </button>
       </div>
+
+      {/* 🆕 שינוי מאבחן/ת - אדמין בלבד */}
+      {isAdmin && (
+        <div className="flex items-center gap-3 mb-6 bg-purple-50 border border-purple-100 rounded-2xl p-4 flex-wrap">
+          <span className="text-sm font-bold text-purple-700 shrink-0">
+            מאבחן/ת אחראי/ת:
+          </span>
+          <select
+            value={selectedNewTherapistId}
+            onChange={(e) => setSelectedNewTherapistId(e.target.value)}
+            className="flex-1 min-w-[180px] px-3 py-2 border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900 text-sm"
+          >
+            <option value="">-- בחר/י מאבחן/ת --</option>
+            {therapistsList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.firstName} {t.lastName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleReassignClick}
+            disabled={
+              reassigning ||
+              !selectedNewTherapistId ||
+              selectedNewTherapistId === diagnosis.therapistId
+            }
+            className="px-4 py-2 rounded-lg font-bold text-white bg-purple-600 hover:bg-purple-700 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed text-sm shrink-0"
+          >
+            {reassigning ? "מעדכן..." : "עדכן מאבחן/ת"}
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4 mb-10 flex-wrap">
         <div className="flex gap-2 bg-gray-100/60 p-1.5 rounded-2xl w-fit">

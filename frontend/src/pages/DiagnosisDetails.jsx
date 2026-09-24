@@ -1137,7 +1137,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { db } from "../firebase";
+import { collection, getDocs } from "firebase/firestore";
 import therapistService from "../services/therapist.service";
+import childService from "../services/child.service";
 import GenericMessageModal from "../components/GenericMessageModal";
 import DiagnosisList from "../components/DiagnosisList";
 import DiagnosisView from "../components/DiagnosisView";
@@ -1148,7 +1151,7 @@ import ReportForm from "../components/ReportForm";
 const DiagnosisDetails = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
 
   const [childData, setChildData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1165,6 +1168,9 @@ const DiagnosisDetails = () => {
   // 🆕 Consent Form
   const [consentForm, setConsentForm] = useState(null);
   const [isConsentViewerOpen, setIsConsentViewerOpen] = useState(false);
+
+  // 🆕 רשימת מטפלים (לאדמין בלבד) - לשינוי המאבחן/ת המשויך/ת לאבחון
+  const [therapistsList, setTherapistsList] = useState([]);
 
   // 1. שליפת פרטי ילד
   useEffect(() => {
@@ -1254,6 +1260,31 @@ const DiagnosisDetails = () => {
     }
   }, [activeTab]);
 
+  // 🆕 שליפת רשימת מטפלים (אותה שיטה בדיוק כמו ב-AddChildModal.jsx) - רק
+  // לאדמין, כדי לא לבזבז שליפה מיותרת למטפלים רגילים שלא יראו את האפשרות
+  useEffect(() => {
+    if (userRole !== "admin") return;
+
+    const fetchTherapists = async () => {
+      try {
+        const usersRef = collection(db, "users");
+        const snapshot = await getDocs(usersRef);
+        const allUsers = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setTherapistsList(
+          allUsers.filter(
+            (u) => u.role === "therapist" || u.role === "admin",
+          ),
+        );
+      } catch (error) {
+        console.error("Error fetching therapists list:", error);
+      }
+    };
+    fetchTherapists();
+  }, [userRole]);
+
   const handleUpdateQStatus = async (diagnosisId, newStatus, childIdParam) => {
     try {
       const token = await currentUser.getIdToken();
@@ -1276,6 +1307,22 @@ const DiagnosisDetails = () => {
       loadDiagnoses();
     } catch (err) {
       alert("שגיאה בפתיחת אבחון");
+    }
+  };
+
+  // 🆕 שינוי המאבחן/ת המשויך/ת לאבחון קיים (אדמין בלבד)
+  const handleReassignTherapist = async (diagnosisId, newTherapistId) => {
+    try {
+      const token = await currentUser.getIdToken();
+      await childService.reassignDiagnosisTherapist(
+        diagnosisId,
+        newTherapistId,
+        token,
+      );
+      loadDiagnoses();
+      alert("המאבחן/ת עודכן/ה בהצלחה");
+    } catch (err) {
+      alert("שגיאה בעדכון המאבחן/ת");
     }
   };
 
@@ -1442,6 +1489,9 @@ const DiagnosisDetails = () => {
                 }}
                 consentForm={consentForm}
                 onViewConsentForm={() => setIsConsentViewerOpen(true)}
+                isAdmin={userRole === "admin"}
+                therapistsList={therapistsList}
+                onReassignTherapist={handleReassignTherapist}
               />
             )}
           </div>

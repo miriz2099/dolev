@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createDiagnosis,
   getDiagnosesByChild,
+  reassignTherapist,
   getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,
@@ -16,11 +17,13 @@ const {
   cancelAssessmentAppointment,
   deleteDiagnosis,
 } = require("../controllers/diagnosis.controller");
-const { verifyToken } = require("../middleware/auth.middleware");
+const { verifyToken, verifyAdmin } = require("../middleware/auth.middleware");
 
 // כל הנתיבים כאן מוגנים ע"י ה-Token
 router.post("/create", verifyToken, createDiagnosis);
 router.get("/child/:childId", verifyToken, getDiagnosesByChild);
+// 🆕 שינוי המאבחן/ת המשויך/ת לאבחון קיים - אדמין בלבד
+router.patch("/:diagnosisId/therapist", verifyAdmin, reassignTherapist);
 router.get("/:diagnosisId/progress", verifyToken, getDiagnosisProgress);
 router.put("/status/:diagnosisId", verifyToken, updateQuestionnaireStatus);
 router.post(

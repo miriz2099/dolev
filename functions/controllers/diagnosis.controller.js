@@ -2113,8 +2113,13 @@ const getDiagnosesByChild = async (req, res) => {
 
     const childData = childDoc.data();
 
-    // 2. בדיקת אבטחה: האם זה ההורה או המטפל של הילד?
+    // 2. בדיקת אבטחה: האם זה ההורה או המטפל של הילד? אדמין עוקף את הבדיקה
+    const requesterDoc = await db.collection("users").doc(IdFromToken).get();
+    const requesterRole = requesterDoc.exists ? requesterDoc.data().role : null;
+    const isAdmin = requesterRole === "admin";
+
     if (
+      !isAdmin &&
       childData.parentId !== IdFromToken &&
       childData.therapistId !== IdFromToken
     ) {
@@ -2136,6 +2141,41 @@ const getDiagnosesByChild = async (req, res) => {
   } catch (error) {
     console.error("Error fetching diagnoses:", error);
     res.status(500).json({ error: "כשל בשליפת אבחונים" });
+  }
+};
+
+// PATCH /diagnoses/:diagnosisId/therapist
+// שינוי המאבחן/ת המשויך/ת לאבחון קיים (אדמין בלבד - נאכף ב-route ע"י verifyAdmin)
+const reassignTherapist = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const { newTherapistId } = req.body;
+
+    if (!newTherapistId) {
+      return res.status(400).json({ error: "נדרש מזהה מאבחן/ת" });
+    }
+
+    const diagRef = db.collection("diagnoses").doc(diagnosisId);
+    const diagDoc = await diagRef.get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+
+    const therapistDoc = await db.collection("users").doc(newTherapistId).get();
+    const therapistRole = therapistDoc.exists ? therapistDoc.data().role : null;
+    if (!therapistDoc.exists || (therapistRole !== "therapist" && therapistRole !== "admin")) {
+      return res.status(400).json({ error: "המשתמש שנבחר אינו מאבחן/ת תקין/ה" });
+    }
+
+    await diagRef.update({
+      therapistId: newTherapistId,
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.status(200).json({ message: "המאבחן/ת עודכן/ה בהצלחה" });
+  } catch (error) {
+    console.error("Error in reassignTherapist:", error);
+    res.status(500).json({ error: "שגיאת שרת בעדכון המאבחן/ת" });
   }
 };
 
@@ -2990,6 +3030,7 @@ module.exports = {
   // ניהול diagnosis
   createDiagnosis,
   getDiagnosesByChild,
+  reassignTherapist,
   getDiagnosisProgress,
   updateQuestionnaireStatus,
   submitQuestionnaire,
