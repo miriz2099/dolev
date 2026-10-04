@@ -2705,13 +2705,26 @@ const generateParentQuestionnaireHTML = (doc) => {
   html += infoRow("האם הביע/ה מצוקה בעניין?", f.expressedDistress);
   html += infoRow("האם מוכן/ה להיוועץ?", f.willingToConsult);
   html += infoRow("עבר אבחון בעבר?", f.hadAssessment);
-  if (f.hadAssessment === "כן") {
-    html += infoRow("סוג אבחון קודם", f.assessmentType);
-    html += infoRow("תאריך האבחון", f.assessmentDate);
-    html += infoRow("המלצות אבחונים", f.assessmentRecommendations);
-  }
   html += infoRow("טיפולים פרא-רפואיים", f.paraMedicalTreatments);
   html += `</table>`;
+  if (f.hadAssessment === "כן") {
+    const assessments =
+      Array.isArray(f.assessments) && f.assessments.length > 0
+        ? f.assessments
+        : f.assessmentType || f.assessmentDate || f.assessmentRecommendations
+          ? [
+              {
+                type: f.assessmentType,
+                date: f.assessmentDate,
+                recommendations: f.assessmentRecommendations,
+              },
+            ]
+          : [];
+    html += dataTable(
+      ["סוג אבחון", "תאריך האבחון", "המלצות"],
+      assessments.map((a) => [a.type, a.date, a.recommendations]),
+    );
+  }
   if (f.assessmentFiles?.length) {
     html += `<h3>מסמכי אבחון קודם מצורפים</h3><ul>`;
     f.assessmentFiles.forEach((file) => (html += `<li>${file.name}</li>`));

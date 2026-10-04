@@ -832,6 +832,21 @@ const QuestionnaireViewer = ({ data }) => {
 
   const { formData } = data;
 
+  const assessments =
+    Array.isArray(formData.assessments) && formData.assessments.length > 0
+      ? formData.assessments
+      : formData.assessmentType ||
+          formData.assessmentDate ||
+          formData.assessmentRecommendations
+        ? [
+            {
+              type: formData.assessmentType,
+              date: formData.assessmentDate,
+              recommendations: formData.assessmentRecommendations,
+            },
+          ]
+        : [];
+
   const handleExportPDF = async () => {
     try {
       setExporting(true);
@@ -916,13 +931,16 @@ const QuestionnaireViewer = ({ data }) => {
         {/* 🆕 פרטי האבחון הקודם - רק אם היה */}
         {formData.hadAssessment === "כן" && (
           <>
-            <AnswerBox label="סוג אבחון קודם" value={formData.assessmentType} />
-            <AnswerBox label="תאריך האבחון" value={formatDate(formData.assessmentDate)} />
-            <AnswerBox
-              label="המלצות אבחונים"
-              value={formData.assessmentRecommendations}
-              wide
-            />
+            {assessments.length > 0 && (
+              <DataTable
+                headers={["סוג אבחון", "תאריך האבחון", "המלצות"]}
+                rows={assessments.map((a) => [
+                  a.type,
+                  formatDate(a.date),
+                  a.recommendations,
+                ])}
+              />
+            )}
 
             {/* 🆕 קבצים מצורפים מהאבחון הקודם */}
             {formData.assessmentFiles &&

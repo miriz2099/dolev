@@ -124,9 +124,7 @@ const ParentQuestionnaire = ({
     onsetTime: "",
     hadAssessment: "",
     assessmentFiles: [],
-    assessmentType: "",
-    assessmentDate: "",
-    assessmentRecommendations: "",
+    assessments: [{ type: "", date: "", recommendations: "" }],
     paraMedicalTreatments: "",
     expressedDistress: "",
     willingToConsult: "",
@@ -367,7 +365,22 @@ const ParentQuestionnaire = ({
 
         if (response.ok) {
           const data = await response.json();
-          setFormData(data.formData);
+          const loaded = data.formData || {};
+          const assessments =
+            Array.isArray(loaded.assessments) && loaded.assessments.length > 0
+              ? loaded.assessments
+              : loaded.assessmentType ||
+                  loaded.assessmentDate ||
+                  loaded.assessmentRecommendations
+                ? [
+                    {
+                      type: loaded.assessmentType || "",
+                      date: loaded.assessmentDate || "",
+                      recommendations: loaded.assessmentRecommendations || "",
+                    },
+                  ]
+                : [{ type: "", date: "", recommendations: "" }];
+          setFormData({ ...loaded, assessments });
           if (data.step) setStep(data.step);
           setSaveStatus("טיוטה נטענה");
         }
@@ -465,6 +478,21 @@ const ParentQuestionnaire = ({
       schoolHistory: [
         ...prev.schoolHistory,
         { grade: "", school: "", city: "" },
+      ],
+    }));
+
+  const handleAssessment = (index, field, value) => {
+    const updated = [...formData.assessments];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormData((prev) => ({ ...prev, assessments: updated }));
+  };
+
+  const addAssessmentRow = () =>
+    setFormData((prev) => ({
+      ...prev,
+      assessments: [
+        ...prev.assessments,
+        { type: "", date: "", recommendations: "" },
       ],
     }));
 
@@ -667,28 +695,47 @@ const ParentQuestionnaire = ({
               {/* הצגת השדות הנוספים רק אם סומן "כן" */}
               {formData.hadAssessment === "כן" && (
                 <div className="space-y-4 border-t pt-4 animate-in fade-in duration-500">
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField
-                      label="איזה אבחון/ים *"
-                      value={formData.assessmentType}
-                      onChange={(v) => handleChange("assessmentType", v)}
-                    />
-                    <InputField
-                      label="תאריך האבחון *"
-                      type="date"
-                      value={formData.assessmentDate}
-                      onChange={(v) => handleChange("assessmentDate", v)}
-                      maxDate={new Date()}
+                  <div className="space-y-4">
+                    {formData.assessments.map((assessment, i) => (
+                      <div
+                        key={i}
+                        className="border border-gray-200 rounded-lg p-3 bg-white space-y-3"
+                      >
+                        <p className="text-xs font-bold text-gray-500">
+                          אבחון {i + 1}
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <InputField
+                            label="איזה אבחון *"
+                            value={assessment.type}
+                            onChange={(v) =>
+                              handleAssessment(i, "type", v)
+                            }
+                          />
+                          <InputField
+                            label="תאריך האבחון *"
+                            type="date"
+                            value={assessment.date}
+                            onChange={(v) =>
+                              handleAssessment(i, "date", v)
+                            }
+                            maxDate={new Date()}
+                          />
+                        </div>
+                        <TextAreaField
+                          label="מה היו המלצות האבחון? *"
+                          value={assessment.recommendations}
+                          onChange={(v) =>
+                            handleAssessment(i, "recommendations", v)
+                          }
+                        />
+                      </div>
+                    ))}
+                    <AddRowButton
+                      onClick={addAssessmentRow}
+                      label="+ הוסף אבחון נוסף"
                     />
                   </div>
-
-                  <TextAreaField
-                    label="מה היו המלצות האבחון/ים? *"
-                    value={formData.assessmentRecommendations}
-                    onChange={(v) =>
-                      handleChange("assessmentRecommendations", v)
-                    }
-                  />
 
                   {/* העלאת קבצים */}
                   <div className="flex flex-col gap-2">
@@ -1539,10 +1586,17 @@ const ParentQuestionnaire = ({
     if (!formData.onsetTime) missingFields.push("מתי התחילו הקשיים");
     if (!formData.hadAssessment) missingFields.push("האם עבר אבחון בעבר");
     if (formData.hadAssessment === "כן") {
-      if (!formData.assessmentType) missingFields.push("סוג האבחון שעבר");
-      if (!formData.assessmentDate) missingFields.push("תאריך האבחון שעבר");
-      if (!formData.assessmentRecommendations)
-        missingFields.push("המלצות האבחון");
+      const assessments = formData.assessments || [];
+      if (assessments.length === 0) {
+        missingFields.push("פרטי האבחון שעבר");
+      } else {
+        assessments.forEach((a, i) => {
+          if (!a.type) missingFields.push(`סוג האבחון ${i + 1} שעבר`);
+          if (!a.date) missingFields.push(`תאריך האבחון ${i + 1} שעבר`);
+          if (!a.recommendations)
+            missingFields.push(`המלצות האבחון ${i + 1}`);
+        });
+      }
     }
     if (!formData.paraMedicalTreatments)
       missingFields.push("טיפולים פרא-רפואיים");

@@ -20,9 +20,6 @@ const SECTION_QUESTIONNAIRE_FIELDS = {
       { field: "referralGoals", label: "מטרות הפנייה" },
       { field: "onsetTime", label: "תחילת הקשיים" },
       { field: "hadAssessment", label: "אבחון קודם (פסיכולוגי/נוירולוגי/אחר)" },
-      { field: "assessmentType", label: "סוג האבחון הקודם" },
-      { field: "assessmentDate", label: "תאריך האבחון הקודם" },
-      { field: "assessmentRecommendations", label: "המלצות האבחון הקודם" },
       {
         field: "paraMedicalTreatments",
         label: "טיפולים פרא-רפואיים (ריפוי בעיסוק/קלינאית תקשורת/פיזיותרפיה וכו')",
@@ -141,6 +138,40 @@ const SECTION_QUESTIONNAIRE_FIELDS = {
 };
 
 /**
+ * בונה שורות טקסט לאבחונים קודמים (assessments - רשימה דינמית של
+ * סוג/תאריך/המלצות), עם תאימות לאחור לפורמט הישן של שדות בודדים
+ * (assessmentType/assessmentDate/assessmentRecommendations).
+ */
+const buildAssessmentsText = (parentFormData = {}) => {
+  const assessments =
+    Array.isArray(parentFormData.assessments) &&
+    parentFormData.assessments.length > 0
+      ? parentFormData.assessments
+      : parentFormData.assessmentType ||
+          parentFormData.assessmentDate ||
+          parentFormData.assessmentRecommendations
+        ? [
+            {
+              type: parentFormData.assessmentType,
+              date: parentFormData.assessmentDate,
+              recommendations: parentFormData.assessmentRecommendations,
+            },
+          ]
+        : [];
+
+  return assessments
+    .map(({ type, date, recommendations }, i) => {
+      const parts = [];
+      if (type) parts.push(`סוג: ${type}`);
+      if (date) parts.push(`תאריך: ${date}`);
+      if (recommendations) parts.push(`המלצות: ${recommendations}`);
+      if (parts.length === 0) return null;
+      return `אבחון קודם ${i + 1} - ${parts.join(", ")}`;
+    })
+    .filter(Boolean);
+};
+
+/**
  * בונה מחרוזת טקסט מתויגת (label: value) מתוך התשובות הרלוונטיות לסעיף
  * נתון, בשאלון ההורים ובשאלון בית הספר. שדות ריקים/undefined מדולגים
  * לגמרי - אין "לא צוין" או placeholder דומה, כדי לא להאכיל את המודל
@@ -171,6 +202,9 @@ const buildQuestionnaireContext = (
       .filter(Boolean);
 
   const parentLines = formatFields(fieldsConfig.parent, parentFormData);
+  if (sectionId === "referralReason") {
+    parentLines.push(...buildAssessmentsText(parentFormData));
+  }
   const schoolLines = formatFields(fieldsConfig.school, schoolFormData);
 
   const blocks = [];
