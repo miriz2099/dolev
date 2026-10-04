@@ -2071,6 +2071,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
+import { formatDate } from "../utils/dateFormat";
 
 // --- רכיבי עזר לאחידות עיצובית (מבוסס על QuestionnaireViewer שלך) ---
 
@@ -2205,7 +2206,7 @@ const SchoolSurveyView = ({ data }) => {
           value={`${formData.firstName} ${formData.lastName}`}
         />
         <AnswerBox label="תעודת זהות" value={formData.idNumber} />
-        <AnswerBox label="תאריך לידה" value={formData.birthDate} />
+        <AnswerBox label="תאריך לידה" value={formatDate(formData.birthDate)} />
         <AnswerBox
           label="מין"
           value={
@@ -2428,7 +2429,7 @@ const SchoolSurveyView = ({ data }) => {
             תאריך חתימה
           </p>
           <p className="text-lg text-gray-800 font-mono font-bold">
-            {formData.signatureDate || formData.date}
+            {formatDate(formData.signatureDate) || formData.date}
           </p>
         </div>
       </div>

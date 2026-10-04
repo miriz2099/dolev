@@ -681,6 +681,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import therapistService from "../services/therapist.service";
+import { formatDate } from "../utils/dateFormat";
 
 // ============================================
 // רכיבי עזר לתצוגה נקייה
@@ -874,7 +875,7 @@ const QuestionnaireViewer = ({ data }) => {
           value={`${formData.childFirstName} ${formData.childLastName}`}
         />
         <AnswerBox label="ת.ז" value={formData.idNumber} />
-        <AnswerBox label="תאריך לידה" value={formData.birthDate} />
+        <AnswerBox label="תאריך לידה" value={formatDate(formData.birthDate)} />
         <AnswerBox label="מין" value={formData.gender} />
         <AnswerBox label="ארץ לידה" value={formData.birthCountry} />
         <AnswerBox label="תאריך עלייה" value={formData.aliyaDate} />
@@ -916,7 +917,7 @@ const QuestionnaireViewer = ({ data }) => {
         {formData.hadAssessment === "כן" && (
           <>
             <AnswerBox label="סוג אבחון קודם" value={formData.assessmentType} />
-            <AnswerBox label="תאריך האבחון" value={formData.assessmentDate} />
+            <AnswerBox label="תאריך האבחון" value={formatDate(formData.assessmentDate)} />
             <AnswerBox
               label="המלצות אבחונים"
               value={formData.assessmentRecommendations}

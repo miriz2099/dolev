@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
 import childService from "../services/child.service";
+import HebrewDateInput from "./HebrewDateInput";
+import { formatTime } from "../utils/dateFormat";
 
 import { storage } from "../firebase"; // הייצוא שיצרנו בשלב הקודם
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -14,17 +16,27 @@ const InputField = ({
   type = "text",
   className = "",
   wide = false,
+  maxDate,
 }) => (
   <div
     className={`flex flex-col gap-1 ${wide ? "col-span-2" : ""} ${className}`}
   >
     <label className="text-sm font-bold text-gray-700">{label}</label>
-    <input
-      type={type}
-      value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
-      className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-    />
+    {type === "date" ? (
+      <HebrewDateInput
+        value={value}
+        onChange={onChange}
+        maxDate={maxDate}
+        className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full"
+      />
+    ) : (
+      <input
+        type={type}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+      />
+    )}
   </div>
 );
 
@@ -390,7 +402,7 @@ const ParentQuestionnaire = ({
       });
 
       if (response.ok) {
-        setSaveStatus("טיוטה נשמרה ב-" + new Date().toLocaleTimeString());
+        setSaveStatus("טיוטה נשמרה ב-" + formatTime(new Date()));
         setTimeout(() => setSaveStatus(""), 3000);
       } else {
         throw new Error("Failed to save draft");
@@ -531,6 +543,7 @@ const ParentQuestionnaire = ({
                 type="date"
                 value={formData.birthDate}
                 onChange={(v) => handleChange("birthDate", v)}
+                maxDate={new Date()}
               />
               <InputField
                 label="ארץ לידה *"
@@ -665,6 +678,7 @@ const ParentQuestionnaire = ({
                       type="date"
                       value={formData.assessmentDate}
                       onChange={(v) => handleChange("assessmentDate", v)}
+                      maxDate={new Date()}
                     />
                   </div>
 

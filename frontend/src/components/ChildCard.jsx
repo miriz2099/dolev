@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDate } from "../utils/dateFormat";
 
 const ChildCard = ({ child }) => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const ChildCard = ({ child }) => {
         <div className="space-y-2 mt-4 text-gray-600">
           <p className="flex items-center gap-2">
             <span className="font-semibold text-blue-600">●</span>
-            תאריך לידה: {child.birthDate || "לא הוזן"}
+            תאריך לידה: {formatDate(child.birthDate) || "לא הוזן"}
           </p>
           <p className="flex items-center gap-2">
             <span className="font-semibold text-blue-600">●</span>

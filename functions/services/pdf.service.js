@@ -2265,6 +2265,15 @@
 // functions/services/pdf.service.js
 const htmlPdf = require("html-pdf-node");
 
+// אחידות תאריכים בפורמט ישראלי (יום.חודש.שנה) בכל ה-PDF - תצוגה בלבד,
+// לא משנה את פורמט הנתונים השמורים
+const IL_TZ = "Asia/Jerusalem";
+const formatIsoDateOnly = (val) => {
+  if (typeof val !== "string") return val;
+  const m = val.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : val;
+};
+
 // העתק של הסטרוקטורה הרשמית שלכן לצורך ניתוח בשרת
 const REPORT_STRUCTURE = [
   {
@@ -2497,7 +2506,7 @@ const renderSingleSection = (section, sectionData) => {
     section.fields.forEach((field) => {
       const val = sectionData[field.id];
       if (val && String(val).trim() !== "") {
-        html += `<tr><td class="info-label">${field.label}</td><td class="info-value">${val}</td></tr>`;
+        html += `<tr><td class="info-label">${field.label}</td><td class="info-value">${formatIsoDateOnly(val)}</td></tr>`;
       }
     });
     html += `</table>`;
@@ -2578,7 +2587,7 @@ const wrapHtmlDocument = (title, subtitle, bodyHtml) => `
 const infoRow = (label, value) => {
   if (value === undefined || value === null || String(value).trim() === "")
     return "";
-  return `<tr><td class="info-label">${label}</td><td class="info-value">${value}</td></tr>`;
+  return `<tr><td class="info-label">${label}</td><td class="info-value">${formatIsoDateOnly(value)}</td></tr>`;
 };
 
 /**
@@ -2847,7 +2856,7 @@ const generateParentQuestionnaireHTML = (doc) => {
   html += infoRow(
     "הוגש בתאריך",
     doc.submittedAt
-      ? new Date(doc.submittedAt).toLocaleString("he-IL")
+      ? new Date(doc.submittedAt).toLocaleString("he-IL", { timeZone: IL_TZ })
       : "",
   );
   html += `</table>`;
@@ -2892,7 +2901,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += infoRow(
     "תאריך הגשה",
     doc.submittedAt
-      ? new Date(doc.submittedAt).toLocaleDateString("he-IL")
+      ? new Date(doc.submittedAt).toLocaleDateString("he-IL", { timeZone: IL_TZ })
       : "",
   );
   html += `</table>`;
@@ -3004,6 +3013,7 @@ const formatConsentDate = (iso) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: IL_TZ,
   });
 };
 
@@ -3013,6 +3023,7 @@ const formatConsentDateShort = (iso) => {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: IL_TZ,
   });
 };
 
@@ -3070,7 +3081,7 @@ const generateConsentFormHTML = (doc) => {
   html += `<h1>הסכמת ההורים לעריכת אבחון פסיכולוגי</h1>`;
 
   html += `<div class="consent-field">שם הנבחן/ת: <span class="value">${childInfo.fullName || ""}</span></div>`;
-  html += `<div class="consent-field">תאריך לידה: <span class="value">${childInfo.birthDate || ""}</span></div>`;
+  html += `<div class="consent-field">תאריך לידה: <span class="value">${formatIsoDateOnly(childInfo.birthDate) || ""}</span></div>`;
   html += `<div class="consent-field">תעודת זהות: <span class="value">${childInfo.idNumber || ""}</span></div>`;
   html += `<div class="consent-field">שם ביה"ס/הגן: <span class="value">${childInfo.schoolOrGarden || ""}</span></div>`;
 

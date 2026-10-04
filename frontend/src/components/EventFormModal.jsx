@@ -156,6 +156,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import DiaryService from "../services/diary.service";
 import therapistService from "../services/therapist.service";
+import HebrewDateInput from "./HebrewDateInput";
 
 const DEFAULT_DURATION_MINUTES = 90; // שעה וחצי - ברירת מחדל
 
@@ -497,24 +498,22 @@ const EventFormModal = ({
               <label className="block text-sm font-bold text-gray-700 mb-1">
                 התחלה
               </label>
-              <input
-                type="datetime-local"
+              <HebrewDateInput
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={setStartTime}
+                withTime
                 className="w-full border border-gray-300 p-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                required
               />
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">
                 סיום
               </label>
-              <input
-                type="datetime-local"
+              <HebrewDateInput
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                onChange={setEndTime}
+                withTime
                 className="w-full border border-gray-300 p-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                required
               />
             </div>
           </div>

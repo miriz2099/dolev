@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import consentFormService from "../services/consentForm.service";
+import { formatDate } from "../utils/dateFormat";
 
 const PublicConsentForm = () => {
   const { token } = useParams();
@@ -178,7 +179,7 @@ const PublicConsentForm = () => {
               <div>
                 <span className="text-gray-500">תאריך לידה: </span>
                 <span className="font-bold text-gray-900">
-                  {formData.childInfo.birthDate || "—"}
+                  {formatDate(formData.childInfo.birthDate) || "—"}
                 </span>
               </div>
               <div>

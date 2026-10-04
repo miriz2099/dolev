@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import consentFormService from "../services/consentForm.service";
+import { formatDate as formatDateOnly } from "../utils/dateFormat";
 
 /**
  * מודאל לצפייה בטופס ההסכמה (למאבחן בלבד - read-only)
@@ -212,7 +213,7 @@ const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
               <div>
                 <span className="text-gray-500">תאריך לידה: </span>
                 <span className="font-bold text-gray-900">
-                  {childInfo?.birthDate || "—"}
+                  {formatDateOnly(childInfo?.birthDate) || "—"}
                 </span>
               </div>
               <div>

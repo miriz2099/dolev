@@ -1147,6 +1147,7 @@ import DiagnosisView from "../components/DiagnosisView";
 import ConsentFormViewer from "../components/ConsentFormViewer";
 import consentFormService from "../services/consentForm.service";
 import ReportForm from "../components/ReportForm";
+import { formatDate } from "../utils/dateFormat";
 
 const DiagnosisDetails = () => {
   const { childId } = useParams();
@@ -1367,9 +1368,7 @@ const DiagnosisDetails = () => {
               <div>
                 <p className="text-gray-400 text-sm mb-2">תאריך לידה</p>
                 <p className="text-xl font-semibold">
-                  {childData.birthDate
-                    ? new Date(childData.birthDate).toLocaleDateString("he-IL")
-                    : "לא הוזן"}
+                  {formatDate(childData.birthDate) || "לא הוזן"}
                 </p>
               </div>
             </div>

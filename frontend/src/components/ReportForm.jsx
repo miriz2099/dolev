@@ -580,6 +580,7 @@ import { REPORT_STRUCTURE, getNarrativeBlocks } from "../config/reportStructure"
 import AiRephraseField, { MIN_CHARS } from "./AiRephraseField";
 import AiRephraseBatchModal from "./AiRephraseBatchModal";
 import PlausibilityReviewModal from "./PlausibilityReviewModal";
+import HebrewDateInput from "./HebrewDateInput";
 
 // ======================== Sub-components ========================
 
@@ -601,15 +602,26 @@ const LOCKED_INPUT = "bg-gray-50 text-gray-600 cursor-not-allowed";
 const InputField = ({ label, value, onChange, type = "text", disabled }) => (
   <div className="flex flex-col gap-1">
     <label className="text-sm font-bold text-gray-700">{label}</label>
-    <input
-      type={type}
-      value={value || ""}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className={`border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
-        disabled ? LOCKED_INPUT : ""
-      }`}
-    />
+    {type === "date" ? (
+      <HebrewDateInput
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className={`border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 w-full ${
+          disabled ? LOCKED_INPUT : ""
+        }`}
+      />
+    ) : (
+      <input
+        type={type}
+        value={value || ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={`border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled ? LOCKED_INPUT : ""
+        }`}
+      />
+    )}
   </div>
 );
 

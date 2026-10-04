@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import consentFormService from "../services/consentForm.service";
+import { formatDate } from "../utils/dateFormat";
 
 /**
  * מודאל לחתימה על טופס הסכמה לאבחון פסיכולוגי
@@ -127,7 +128,7 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
                 <div>
                   <span className="text-gray-500">תאריך לידה: </span>
                   <span className="font-bold text-gray-900">
-                    {childInfo?.birthDate || "—"}
+                    {formatDate(childInfo?.birthDate) || "—"}
                   </span>
                 </div>
               </div>
