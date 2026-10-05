@@ -2072,6 +2072,16 @@ import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
 import { formatDate } from "../utils/dateFormat";
+import {
+  SQ_LABELS,
+  SQ_OPTIONS,
+  SQ_ADHD_ITEMS,
+  SQ_BEHAVIOR_LABELS,
+  SQ_SCHOOL_HISTORY_TITLE,
+  SQ_SCHOOL_HISTORY_HEADERS,
+  SQ_SUBJECT_MASTERY_TITLE,
+  SQ_ADHD_INSTRUCTION,
+} from "../config/schoolQuestionnaireText";
 
 // --- רכיבי עזר לאחידות עיצובית (מבוסס על QuestionnaireViewer שלך) ---
 
@@ -2205,10 +2215,13 @@ const SchoolSurveyView = ({ data }) => {
           label="שם התלמיד/ה"
           value={`${formData.firstName} ${formData.lastName}`}
         />
-        <AnswerBox label="תעודת זהות" value={formData.idNumber} />
-        <AnswerBox label="תאריך לידה" value={formatDate(formData.birthDate)} />
+        <AnswerBox label={SQ_LABELS.idNumber.label} value={formData.idNumber} />
         <AnswerBox
-          label="מין"
+          label={SQ_LABELS.birthDate.label}
+          value={formatDate(formData.birthDate)}
+        />
+        <AnswerBox
+          label={SQ_LABELS.gender.label}
           value={
             formData.gender === "ז"
               ? "זכר"
@@ -2217,15 +2230,18 @@ const SchoolSurveyView = ({ data }) => {
                 : formData.gender
           }
         />
-        <AnswerBox label="שם האב" value={formData.fatherName} />
-        <AnswerBox label="שם האם" value={formData.motherName} />
-        <AnswerBox label="כתובת" value={formData.address} wide />
-        <AnswerBox label="טלפון" value={formData.phone} />
-        <AnswerBox label="כיתה" value={formData.grade} />
-        <AnswerBox label="בית ספר" value={formData.school} />
+        <AnswerBox label={SQ_LABELS.fatherName.label} value={formData.fatherName} />
+        <AnswerBox label={SQ_LABELS.motherName.label} value={formData.motherName} />
+        <AnswerBox label={SQ_LABELS.address.label} value={formData.address} wide />
+        <AnswerBox label={SQ_LABELS.phone.label} value={formData.phone} />
+        <AnswerBox label={SQ_LABELS.grade.label} value={formData.grade} />
+        <AnswerBox label={SQ_LABELS.school.label} value={formData.school} />
         <AnswerBox label="שם המחנך/ת המדווח" value={teacherName} />
         <AnswerBox label="מייל המורה" value={teacherEmail} />
-        <AnswerBox label="טלפון המורה" value={formData.teacherPhone} />
+        <AnswerBox
+          label={SQ_LABELS.teacherPhone.label}
+          value={formData.teacherPhone}
+        />
         <AnswerBox
           label="תאריך הגשה"
           value={new Date(submittedAt).toLocaleDateString("he-IL")}
@@ -2235,17 +2251,17 @@ const SchoolSurveyView = ({ data }) => {
       {/* 2. סיבת ההפניה */}
       <RenderSection title="סיבת ההפניה">
         <AnswerBox
-          label="מי יזם את הפנייה?"
+          label={SQ_LABELS.referralInitiator.label}
           value={formData.referralInitiator}
           wide
         />
         <AnswerBox
-          label="סיבות הפנייה המרכזיות"
+          label={SQ_LABELS.referralReasons.label}
           value={formData.referralReasons}
           wide
         />
         <AnswerBox
-          label="תיאור קשיי התלמיד (תחילת הקושי ותדירותו)"
+          label={SQ_LABELS.difficultyDescription.label}
           value={formData.difficultyDescription}
           wide
         />
@@ -2254,10 +2270,10 @@ const SchoolSurveyView = ({ data }) => {
       {/* 3. הישגים לימודיים */}
       <RenderSection title="הישגים לימודיים ותפקוד">
         <div className="col-span-full font-bold text-gray-600 mb-2 text-sm">
-          מהלך לימודים בבי"ס:
+          {SQ_SCHOOL_HISTORY_TITLE}
         </div>
         <DataTable
-          headers={["כיתה", "בית ספר"]}
+          headers={SQ_SCHOOL_HISTORY_HEADERS}
           rows={
             formData.schoolHistory
               ?.filter((h) => h.grade || h.school)
@@ -2265,12 +2281,15 @@ const SchoolSurveyView = ({ data }) => {
           }
         />
         <AnswerBox
-          label="רמה אקדמית בהשוואה לכיתה"
+          label={SQ_LABELS.academicLevel.label}
           value={formData.academicLevel}
         />
-        <AnswerBox label="האם נשאר כיתה?" value={formData.stayedGrade} />
         <AnswerBox
-          label="באיזו כיתה ולמה?"
+          label={SQ_LABELS.stayedGrade.label}
+          value={formData.stayedGrade}
+        />
+        <AnswerBox
+          label={`${SQ_LABELS.stayedGradeWhich.label} / ${SQ_LABELS.stayedGradeReasons.label}`}
           value={`${formData.stayedGradeWhich || ""} ${formData.stayedGradeReasons || ""}`}
           wide
         />
@@ -2278,9 +2297,18 @@ const SchoolSurveyView = ({ data }) => {
         <div className="col-span-full mt-4 font-bold text-gray-600 text-sm border-t pt-4">
           ציונים בתעודה אחרונה:
         </div>
-        <AnswerBox label="כיתה" value={formData.reportCardGrade} />
-        <AnswerBox label="מחצית" value={formData.reportCardHalf} />
-        <AnswerBox label="שנה" value={formData.reportCardYear} />
+        <AnswerBox
+          label={SQ_LABELS.reportCardGrade.label}
+          value={formData.reportCardGrade}
+        />
+        <AnswerBox
+          label={SQ_LABELS.reportCardHalf.label}
+          value={formData.reportCardHalf}
+        />
+        <AnswerBox
+          label={SQ_LABELS.reportCardYear.label}
+          value={formData.reportCardYear}
+        />
         <DataTable
           headers={["מקצוע", "ציון"]}
           rows={
@@ -2291,69 +2319,56 @@ const SchoolSurveyView = ({ data }) => {
         />
 
         <div className="col-span-full mt-4 font-bold text-gray-600 text-sm border-t pt-4">
-          שליטה במקצועות יסוד:
+          {SQ_SUBJECT_MASTERY_TITLE}
         </div>
         <AnswerBox
-          label="קריאה (דיוק, קצב, הבנה, אוצר מילים)"
+          label={SQ_LABELS.reading.label}
           value={formData.reading}
           wide
         />
         <AnswerBox
-          label="כתיבה (העתקה, כתיבה חופשית, שגיאות, כתב)"
+          label={SQ_LABELS.writing.label}
           value={formData.writing}
           wide
         />
-        <AnswerBox
-          label="חשבון (הבנה ושליטה בפעולות ופתרון בעיות)"
-          value={formData.math}
-          wide
-        />
+        <AnswerBox label={SQ_LABELS.math.label} value={formData.math} wide />
       </RenderSection>
 
       {/* 4. יחסים והתנהגות */}
       <RenderSection title="יחסים והתנהגות כללית">
         <AnswerBox
-          label="טיב היחס אל המורים"
+          label={SQ_LABELS.teacherRelation.label}
           value={formData.teacherRelation}
         />
         <AnswerBox
-          label="הערות ליחס למורים"
+          label={SQ_LABELS.teacherRelationNotes.label}
           value={formData.teacherRelationNotes}
           wide
         />
         <AnswerBox
-          label="טיב היחסים עם בני הכיתה"
+          label={SQ_LABELS.peerRelation.label}
           value={formData.peerRelation}
         />
         <AnswerBox
-          label="בעיות חברתיות (נסיבות וסיבות)"
+          label={SQ_LABELS.peerProblems.label}
           value={formData.peerProblems}
           wide
         />
 
         <div className="col-span-full mt-4 font-bold text-gray-600 text-sm border-t pt-4">
-          תצפית התנהגות בכיתה (6 חודשים אחרונים):
+          {SQ_ADHD_INSTRUCTION}
         </div>
-        <AnswerBox
-          label="1. דעתו מוסחת בקלות"
-          value={formData.distractedEasily}
-          highlight={formData.distractedEasily !== "אף פעם / לעיתים רחוקות"}
-        />
-        <AnswerBox
-          label="2. מתקשה להתרכז במשימות"
-          value={formData.hardToFocus}
-          highlight={formData.hardToFocus !== "אף פעם / לעיתים רחוקות"}
-        />
-        <AnswerBox
-          label="3. נע/מסתובב/מטפס באופן מוגזם"
-          value={formData.excessiveMovement}
-          highlight={formData.excessiveMovement !== "אף פעם / לעיתים רחוקות"}
-        />
-        <AnswerBox
-          label="4. עוזב את הכיסא בשיעור"
-          value={formData.leavesSeats}
-          highlight={formData.leavesSeats !== "אף פעם / לעיתים רחוקות"}
-        />
+        {SQ_ADHD_ITEMS.map(({ key, label }) => (
+          <AnswerBox
+            key={key}
+            label={label}
+            value={formData[key]}
+            highlight={
+              formData[key] !== SQ_OPTIONS.adhdFrequency[0] &&
+              formData[key] !== "אף פעם / לעיתים רחוקות"
+            }
+          />
+        ))}
       </RenderSection>
 
       {/* 5. בעיות התנהגות מפורטות */}
@@ -2362,7 +2377,7 @@ const SchoolSurveyView = ({ data }) => {
           Object.entries(formData.behaviorRatings).map(([behavior, rating]) => (
             <AnswerBox
               key={behavior}
-              label={behavior}
+              label={SQ_BEHAVIOR_LABELS[behavior] || behavior}
               value={rating}
               highlight={rating !== "כלל לא"}
             />
@@ -2371,33 +2386,46 @@ const SchoolSurveyView = ({ data }) => {
 
       {/* 6. עזרה מיוחדת וסיכום */}
       <RenderSection title="עזרה מיוחדת, התערבות וסיכום">
-        <AnswerBox label="שעות שילוב" value={formData.integrationHours} />
-        <AnswerBox label="היקף (שש)" value={formData.integrationScope} />
-        <AnswerBox label="כמה שנים" value={formData.integrationYears} />
         <AnswerBox
-          label="טיפול רגשי"
+          label={SQ_LABELS.integrationHours.label}
+          value={formData.integrationHours}
+        />
+        <AnswerBox
+          label={SQ_LABELS.integrationScope.label}
+          value={formData.integrationScope}
+        />
+        <AnswerBox
+          label={SQ_LABELS.integrationYears.label}
+          value={formData.integrationYears}
+        />
+        <AnswerBox
+          label={SQ_LABELS.emotionalTreatment.label}
           value={`${formData.emotionalTreatment || "—"} ${formData.emotionalTreatmentDetails ? `(${formData.emotionalTreatmentDetails})` : ""}`}
           wide
         />
         <AnswerBox
-          label="חינוך מיוחד (שם גן/כיתה)"
+          label={SQ_LABELS.specialEducation.label}
           value={`${formData.specialEducation || "—"} ${formData.specialEdName ? `(${formData.specialEdName})` : ""}`}
           wide
         />
-        <AnswerBox label="עזרה אחרת" value={formData.otherHelp} wide />
+        <AnswerBox
+          label={SQ_LABELS.otherHelp.label}
+          value={formData.otherHelp}
+          wide
+        />
 
         <AnswerBox
-          label="סכם התרשמותך מהתלמיד/ה"
+          label={SQ_LABELS.studentSummary.label}
           value={formData.studentSummary}
           wide
         />
         <AnswerBox
-          label="שאלה אבחונית או אחרת"
+          label={SQ_LABELS.diagnosticQuestion.label}
           value={formData.diagnosticQuestion}
           wide
         />
         <AnswerBox
-          label="ההתערבות הטיפולית המבוקשת"
+          label={SQ_LABELS.requestedIntervention.label}
           value={formData.requestedIntervention}
           wide
         />

@@ -934,6 +934,21 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import HebrewDateInput from "./HebrewDateInput";
+import {
+  SQ_TITLE,
+  SQ_LABELS,
+  SQ_OPTIONS,
+  SQ_ADHD_ITEMS,
+  SQ_BEHAVIOR_LABELS,
+  SQ_LEGACY_OPTIONS,
+  SQ_SCHOOL_HISTORY_TITLE,
+  SQ_SCHOOL_HISTORY_HEADERS,
+  SQ_SUBJECT_MASTERY_TITLE,
+  SQ_ADHD_INSTRUCTION,
+  SQ_BEHAVIOR_TABLE_FIRST_COL,
+  SQ_BEHAVIOR_TABLE_FREQ_HEADER,
+  SQ_SPECIAL_HELP_SUBTITLE,
+} from "../config/schoolQuestionnaireText";
 
 // --- רכיבי עזר (UI Components) ---
 
@@ -1028,7 +1043,7 @@ const STEPS = [
   "פרטים אישיים",
   "סיבת ההפניה",
   "הישגים לימודיים",
-  "יחסים ותנהגות",
+  "יחסים והתנהגות",
   "בעיות התנהגות",
   "עזרה מיוחדת וסיכום",
 ];
@@ -1135,7 +1150,18 @@ const SchoolQuestionnaire = ({
 
   useEffect(() => {
     if (initialData && Object.keys(initialData).length > 0) {
-      setFormData((prev) => ({ ...prev, ...initialData }));
+      const migrated = { ...initialData };
+      const mapLegacy = (field, legacyMap) => {
+        if (legacyMap[migrated[field]]) {
+          migrated[field] = legacyMap[migrated[field]];
+        }
+      };
+      mapLegacy("teacherRelation", SQ_LEGACY_OPTIONS.teacherRelation);
+      mapLegacy("peerRelation", SQ_LEGACY_OPTIONS.peerRelation);
+      SQ_ADHD_ITEMS.forEach(({ key }) =>
+        mapLegacy(key, SQ_LEGACY_OPTIONS.adhdFrequency),
+      );
+      setFormData((prev) => ({ ...prev, ...migrated }));
     }
   }, [initialData]);
 
@@ -1204,17 +1230,19 @@ const SchoolQuestionnaire = ({
             <SectionTitle>פרטים אישיים</SectionTitle>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField
-                label="שם משפחה"
+                label={SQ_LABELS.lastName.label}
                 value={formData.lastName}
                 onChange={(v) => handleChange("lastName", v)}
               />
               <InputField
-                label="שם פרטי"
+                label={SQ_LABELS.firstName.label}
                 value={formData.firstName}
                 onChange={(v) => handleChange("firstName", v)}
               />
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-bold text-gray-700">מין</label>
+                <label className="text-sm font-bold text-gray-700">
+                  {SQ_LABELS.gender.label}
+                </label>
                 <div className="flex gap-4 mt-2">
                   {["ז", "נ"].map((g) => (
                     <label
@@ -1235,54 +1263,54 @@ const SchoolQuestionnaire = ({
                 </div>
               </div>
               <InputField
-                label="שם האב"
+                label={SQ_LABELS.fatherName.label}
                 value={formData.fatherName}
                 onChange={(v) => handleChange("fatherName", v)}
               />
               <InputField
-                label="שם האם"
+                label={SQ_LABELS.motherName.label}
                 value={formData.motherName}
                 onChange={(v) => handleChange("motherName", v)}
               />
               <InputField
-                label="תאריך לידה"
+                label={SQ_LABELS.birthDate.label}
                 type="date"
                 value={formData.birthDate}
                 onChange={(v) => handleChange("birthDate", v)}
                 maxDate={new Date()}
               />
               <InputField
-                label="ת.ז."
+                label={SQ_LABELS.idNumber.label}
                 value={formData.idNumber}
                 onChange={(v) => handleChange("idNumber", v)}
               />
               <InputField
-                label="כתובת"
+                label={SQ_LABELS.address.label}
                 value={formData.address}
                 onChange={(v) => handleChange("address", v)}
               />
               <InputField
-                label="מס' טלפון"
+                label={SQ_LABELS.phone.label}
                 value={formData.phone}
                 onChange={(v) => handleChange("phone", v)}
               />
               <InputField
-                label="בית ספר"
+                label={SQ_LABELS.school.label}
                 value={formData.school}
                 onChange={(v) => handleChange("school", v)}
               />
               <InputField
-                label="כיתה"
+                label={SQ_LABELS.grade.label}
                 value={formData.grade}
                 onChange={(v) => handleChange("grade", v)}
               />
               <InputField
-                label="שם המחנך"
+                label={SQ_LABELS.teacherName.label}
                 value={formData.teacherName}
                 onChange={(v) => handleChange("teacherName", v)}
               />
               <InputField
-                label="טלפון מחנך"
+                label={SQ_LABELS.teacherPhone.label}
                 value={formData.teacherPhone}
                 onChange={(v) => handleChange("teacherPhone", v)}
               />
@@ -1294,19 +1322,19 @@ const SchoolQuestionnaire = ({
           <div className="space-y-5 animate-fadeIn">
             <SectionTitle>סיבת ההפניה</SectionTitle>
             <InputField
-              label="מי יזם את הפנייה?"
+              label={SQ_LABELS.referralInitiator.label}
               value={formData.referralInitiator}
               onChange={(v) => handleChange("referralInitiator", v)}
             />
             <TextAreaField
-              label="סיבות הפנייה"
+              label={SQ_LABELS.referralReasons.label}
               value={formData.referralReasons}
               onChange={(v) => handleChange("referralReasons", v)}
               rows={3}
             />
             <TextAreaField
-              label="תיאור קשיי התלמיד"
-              hint="ציין מתי החלו הקשיים ואת תדירות הופעתם"
+              label={SQ_LABELS.difficultyDescription.label}
+              hint={SQ_LABELS.difficultyDescription.hint}
               value={formData.difficultyDescription}
               onChange={(v) => handleChange("difficultyDescription", v)}
               rows={5}
@@ -1317,15 +1345,20 @@ const SchoolQuestionnaire = ({
         return (
           <div className="space-y-5 animate-fadeIn">
             <SectionTitle>הישגים לימודיים</SectionTitle>
+            <p className="text-sm font-bold text-gray-700">
+              {SQ_SCHOOL_HISTORY_TITLE}
+            </p>
             <table className="w-full border-collapse border border-gray-300 text-sm">
               <thead>
                 <tr className="bg-blue-50">
-                  <th className="border border-gray-300 p-2 text-right">
-                    כיתה
-                  </th>
-                  <th className="border border-gray-300 p-2 text-right">
-                    בית ספר
-                  </th>
+                  {SQ_SCHOOL_HISTORY_HEADERS.map((h) => (
+                    <th
+                      key={h}
+                      className="border border-gray-300 p-2 text-right"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -1359,34 +1392,34 @@ const SchoolQuestionnaire = ({
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
               <InputField
-                label="האם נשאר כיתה שנה נוספת?"
+                label={SQ_LABELS.stayedGrade.label}
                 value={formData.stayedGrade}
                 onChange={(v) => handleChange("stayedGrade", v)}
               />
               <InputField
-                label="באיזו כיתה?"
+                label={SQ_LABELS.stayedGradeWhich.label}
                 value={formData.stayedGradeWhich}
                 onChange={(v) => handleChange("stayedGradeWhich", v)}
               />
             </div>
             <InputField
-              label="מה היו הסיבות לכך?"
+              label={SQ_LABELS.stayedGradeReasons.label}
               value={formData.stayedGradeReasons}
               onChange={(v) => handleChange("stayedGradeReasons", v)}
             />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <InputField
-                label="ציונים בתעודה - בכיתה"
+                label={SQ_LABELS.reportCardGrade.label}
                 value={formData.reportCardGrade}
                 onChange={(v) => handleChange("reportCardGrade", v)}
               />
               <InputField
-                label="במחצית"
+                label={SQ_LABELS.reportCardHalf.label}
                 value={formData.reportCardHalf}
                 onChange={(v) => handleChange("reportCardHalf", v)}
               />
               <InputField
-                label="שנת"
+                label={SQ_LABELS.reportCardYear.label}
                 value={formData.reportCardYear}
                 onChange={(v) => handleChange("reportCardYear", v)}
               />
@@ -1429,18 +1462,14 @@ const SchoolQuestionnaire = ({
             </table>
             <AddRowButton onClick={addGradeRow} label="+ הוסף מקצוע" />
             <div className="mt-6">
-              <p className="text-sm font-bold text-gray-700 mb-2">
-                הערך את הישגיו הלימודיים:
+              <p className="text-sm font-bold text-gray-700 mb-1">
+                {SQ_LABELS.academicLevel.label}
+              </p>
+              <p className="text-xs text-gray-500 mb-2">
+                {SQ_LABELS.academicLevel.hint}
               </p>
               <div className="flex gap-3 flex-wrap">
-                {[
-                  "חלשים מאוד",
-                  "חלשים",
-                  "למטה מבינוניים",
-                  "טובים",
-                  "טובים מאוד",
-                  "מצוינים",
-                ].map((opt) => (
+                {SQ_OPTIONS.academicLevel.map((opt) => (
                   <label
                     key={opt}
                     className="flex items-center gap-1 cursor-pointer text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition"
@@ -1457,6 +1486,29 @@ const SchoolQuestionnaire = ({
                 ))}
               </div>
             </div>
+            <div className="mt-6 space-y-4">
+              <p className="text-sm font-bold text-gray-700">
+                {SQ_SUBJECT_MASTERY_TITLE}
+              </p>
+              <TextAreaField
+                label={SQ_LABELS.reading.label}
+                hint={SQ_LABELS.reading.hint}
+                value={formData.reading}
+                onChange={(v) => handleChange("reading", v)}
+              />
+              <TextAreaField
+                label={SQ_LABELS.writing.label}
+                hint={SQ_LABELS.writing.hint}
+                value={formData.writing}
+                onChange={(v) => handleChange("writing", v)}
+              />
+              <TextAreaField
+                label={SQ_LABELS.math.label}
+                hint={SQ_LABELS.math.hint}
+                value={formData.math}
+                onChange={(v) => handleChange("math", v)}
+              />
+            </div>
           </div>
         );
       case 4:
@@ -1464,41 +1516,50 @@ const SchoolQuestionnaire = ({
           <div className="space-y-6 animate-fadeIn">
             <SectionTitle>יחסים והתנהגות</SectionTitle>
             <RadioRow
-              label="יחס למורים:"
-              options={[
-                "עוין",
-                "מסויג",
-                "תקין",
-                "מחפש אהדה",
-                "מחפש אהדה מופרזת",
-              ]}
+              label={SQ_LABELS.teacherRelation.label}
+              options={SQ_OPTIONS.teacherRelation}
               value={formData.teacherRelation}
               onChange={(v) => handleChange("teacherRelation", v)}
             />
             <TextAreaField
-              label="הערות ליחס למורים"
+              label={SQ_LABELS.teacherRelationNotes.label}
+              hint={SQ_LABELS.teacherRelationNotes.hint}
               value={formData.teacherRelationNotes}
               onChange={(v) => handleChange("teacherRelationNotes", v)}
             />
             <RadioRow
-              label="יחס לבני כיתתו:"
-              options={["מתבודד", "דחוי", "חברתיים קלושים", "מקובל", "מנהיג"]}
+              label={SQ_LABELS.peerRelation.label}
+              options={SQ_OPTIONS.peerRelation}
               value={formData.peerRelation}
               onChange={(v) => handleChange("peerRelation", v)}
             />
             <TextAreaField
-              label="תיאור בעיות חברתיות"
+              label={SQ_LABELS.peerProblems.label}
               value={formData.peerProblems}
               onChange={(v) => handleChange("peerProblems", v)}
             />
             <div className="mt-6">
+              <p className="text-sm font-bold text-gray-700 mb-2">
+                {SQ_ADHD_INSTRUCTION}
+              </p>
               <table className="w-full border-collapse border border-gray-300 text-sm font-sans">
                 <thead>
                   <tr className="bg-blue-50">
-                    <th className="border border-gray-300 p-2 text-right">
-                      התנהגות
+                    <th
+                      className="border border-gray-300 p-2 text-right"
+                      rowSpan={2}
+                    >
+                      {SQ_BEHAVIOR_TABLE_FIRST_COL}
                     </th>
-                    {["אף פעם", "לפעמים", "קרובות", "קרובות מאד"].map((h) => (
+                    <th
+                      className="border border-gray-300 p-2 text-center"
+                      colSpan={SQ_OPTIONS.adhdFrequency.length}
+                    >
+                      {SQ_BEHAVIOR_TABLE_FREQ_HEADER}
+                    </th>
+                  </tr>
+                  <tr className="bg-blue-50">
+                    {SQ_OPTIONS.adhdFrequency.map((h) => (
                       <th
                         key={h}
                         className="border border-gray-300 p-2 text-center text-xs"
@@ -1509,22 +1570,12 @@ const SchoolQuestionnaire = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { key: "distractedEasily", label: "1. דעתו מוסחת בקלות." },
-                    { key: "hardToFocus", label: "2. מתקשה להתרכז." },
-                    { key: "excessiveMovement", label: "3. נע באופן מוגזם." },
-                    { key: "leavesSeats", label: "4. עוזב את הכסא." },
-                  ].map(({ key, label }) => (
+                  {SQ_ADHD_ITEMS.map(({ key, label }) => (
                     <tr key={key}>
                       <td className="border border-gray-300 p-2 font-medium">
                         {label}
                       </td>
-                      {[
-                        "אף פעם / לעיתים רחוקות",
-                        "לפעמים",
-                        "לעיתים קרובות",
-                        "לעיתים קרובות מאד",
-                      ].map((opt) => (
+                      {SQ_OPTIONS.adhdFrequency.map((opt) => (
                         <td
                           key={opt}
                           className="border border-gray-300 p-2 text-center"
@@ -1548,12 +1599,12 @@ const SchoolQuestionnaire = ({
       case 5:
         return (
           <div className="space-y-5 animate-fadeIn">
-            <SectionTitle>בעיות התנהגות</SectionTitle>
+            <SectionTitle>{'בעיות התנהגות במסגרת ביה"ס'}</SectionTitle>
             <table className="w-full border-collapse border border-gray-300 text-sm">
               <thead>
                 <tr className="bg-blue-50">
                   <th className="border border-gray-300 p-2 text-right">
-                    התנהגות
+                    {SQ_BEHAVIOR_TABLE_FIRST_COL}
                   </th>
                   {FREQ_OPTIONS.map((h) => (
                     <th
@@ -1568,7 +1619,9 @@ const SchoolQuestionnaire = ({
               <tbody>
                 {BEHAVIOR_ITEMS.map((item) => (
                   <tr key={item} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 p-2">{item}</td>
+                    <td className="border border-gray-300 p-2">
+                      {SQ_BEHAVIOR_LABELS[item] || item}
+                    </td>
                     {FREQ_OPTIONS.map((opt) => (
                       <td
                         key={opt}
@@ -1593,76 +1646,90 @@ const SchoolQuestionnaire = ({
         return (
           <div className="space-y-5 animate-fadeIn">
             <SectionTitle>עזרה מיוחדת וסיכום</SectionTitle>
+            <p className="text-sm font-bold text-gray-700">
+              {SQ_SPECIAL_HELP_SUBTITLE}
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField
-                label="שעות שילוב"
+                label={SQ_LABELS.integrationHours.label}
                 value={formData.integrationHours}
                 onChange={(v) => handleChange("integrationHours", v)}
               />
               <InputField
-                label='היקף (ש"ש)'
+                label={SQ_LABELS.integrationScope.label}
                 value={formData.integrationScope}
                 onChange={(v) => handleChange("integrationScope", v)}
               />
               <InputField
-                label="כמה שנים"
+                label={SQ_LABELS.integrationYears.label}
                 value={formData.integrationYears}
                 onChange={(v) => handleChange("integrationYears", v)}
               />
             </div>
             <RadioRow
-              label="טיפול רגשי?"
+              label={SQ_LABELS.emotionalTreatment.label}
               options={["כן", "לא"]}
               value={formData.emotionalTreatment}
               onChange={(v) => handleChange("emotionalTreatment", v)}
             />
             <InputField
-              label="איזה טיפול?"
+              label={SQ_LABELS.emotionalTreatmentDetails.label}
               value={formData.emotionalTreatmentDetails}
               onChange={(v) => handleChange("emotionalTreatmentDetails", v)}
             />
             <RadioRow
-              label="חינוך מיוחד?"
+              label={SQ_LABELS.specialEducation.label}
               options={["כן", "לא"]}
               value={formData.specialEducation}
               onChange={(v) => handleChange("specialEducation", v)}
             />
             <InputField
-              label="שם הגן/כיתה"
+              label={SQ_LABELS.specialEdName.label}
               value={formData.specialEdName}
               onChange={(v) => handleChange("specialEdName", v)}
             />
+            <InputField
+              label={SQ_LABELS.otherHelp.label}
+              value={formData.otherHelp}
+              onChange={(v) => handleChange("otherHelp", v)}
+            />
             <TextAreaField
-              label="סכם התרשמותך"
+              label={SQ_LABELS.studentSummary.label}
               value={formData.studentSummary}
               onChange={(v) => handleChange("studentSummary", v)}
               rows={4}
             />
             <TextAreaField
-              label="שאלה אבחונית"
+              label={SQ_LABELS.diagnosticQuestion.label}
               value={formData.diagnosticQuestion}
               onChange={(v) => handleChange("diagnosticQuestion", v)}
               rows={2}
             />
+            <TextAreaField
+              label={SQ_LABELS.requestedIntervention.label}
+              value={formData.requestedIntervention}
+              onChange={(v) => handleChange("requestedIntervention", v)}
+              rows={3}
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-6 border-t mt-6">
               <InputField
-                label="תאריך"
+                label={SQ_LABELS.signatureDate.label}
                 type="date"
                 value={formData.signatureDate}
                 onChange={(v) => handleChange("signatureDate", v)}
               />
               <InputField
-                label="שם המחנך"
+                label={SQ_LABELS.teacherSignatureName.label}
                 value={formData.teacherSignatureName}
                 onChange={(v) => handleChange("teacherSignatureName", v)}
               />
               <InputField
-                label="חתימת מחנך"
+                label={SQ_LABELS.teacherSignature.label}
                 value={formData.teacherSignature}
                 onChange={(v) => handleChange("teacherSignature", v)}
               />
               <InputField
-                label="חתימת מנהל"
+                label={SQ_LABELS.principalSignature.label}
                 value={formData.principalSignature}
                 onChange={(v) => handleChange("principalSignature", v)}
               />
@@ -1682,9 +1749,7 @@ const SchoolQuestionnaire = ({
     >
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-blue-900">
-            שאלון לצוות חינוכי
-          </h2>
+          <h2 className="text-2xl font-bold text-blue-900">{SQ_TITLE}</h2>
           <p className="text-sm text-gray-500 mt-1 font-mono">
             תאריך: {formData.date}
           </p>

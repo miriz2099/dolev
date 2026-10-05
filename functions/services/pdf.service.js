@@ -2747,8 +2747,11 @@ const generateParentQuestionnaireHTML = (doc) => {
 
   html += `<h2>הערכת תפקוד כללית</h2><table class="info-table">`;
   html += infoRow("תפקוד לימודי", f.functioning?.studies);
+  html += infoRow("פירוט - תפקוד לימודי", f.functioning?.studiesDetails);
   html += infoRow("תפקוד משפחתי", f.functioning?.family);
+  html += infoRow("פירוט - תפקוד משפחתי", f.functioning?.familyDetails);
   html += infoRow("תפקוד חברתי", f.functioning?.social);
+  html += infoRow("פירוט - תפקוד חברתי", f.functioning?.socialDetails);
   html += infoRow("הערות תפקוד", f.functioning?.notes);
   html += `</table>`;
 
@@ -2887,6 +2890,24 @@ exports.generateParentQuestionnairePDFBuffer = async (doc) =>
 // ============================================
 // שאלון בית ספר -> PDF
 // ============================================
+// תוויות הפריטים בטבלת "דירוג בעיות התנהגות מפורטות" - מקבילות ל-
+// SQ_BEHAVIOR_LABELS ב-frontend/src/config/schoolQuestionnaireText.js. השרת
+// לא יכול לייבא מהפרונט, ולכן הטקסטים משוכפלים כאן; פריט שאינו ברשימה
+// מוצג עם המפתח המקורי שלו (ללא שינוי).
+const SCHOOL_BEHAVIOR_LABELS = {
+  'נעדר מבי"ס ללא הצדקה': 'נעדר/ת מבי"ס ללא הצדקה',
+  'מאחר לבי"ס ללא הצדקה': 'מאחר/ת לבי"ס ללא הצדקה',
+  "מפריע בשיעורים": "מפריע/ה בשיעורים",
+  "אינו מגלה עניין בלימודים": "אינו/אינה מגלה עניין בלימודים",
+  "נחבא אל הכלים – ביישן": "נחבא/ת אל הכלים – ביישן/ית",
+  "מתעקש": "מתעקש/ת",
+  "משקר": "משקר/ת",
+  "גונב": "גונב/ת",
+  "חסר מנוחה": "חסר/ת מנוחה",
+  "תלותי": "תלותי/ת",
+  "חסר בטחון עצמי": "חסר/ת בטחון עצמי",
+};
+
 const generateSchoolQuestionnaireHTML = (doc) => {
   const f = doc.formData || {};
   let html = "";
@@ -2896,7 +2917,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
     "שם התלמיד/ה",
     `${f.firstName || ""} ${f.lastName || ""}`.trim(),
   );
-  html += infoRow("תעודת זהות", f.idNumber);
+  html += infoRow("ת.ז.", f.idNumber);
   html += infoRow("תאריך לידה", f.birthDate);
   html += infoRow(
     "מין",
@@ -2905,12 +2926,12 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += infoRow("שם האב", f.fatherName);
   html += infoRow("שם האם", f.motherName);
   html += infoRow("כתובת", f.address);
-  html += infoRow("טלפון", f.phone);
+  html += infoRow("מס' טלפון", f.phone);
   html += infoRow("כיתה", f.grade);
   html += infoRow("בית ספר", f.school);
   html += infoRow("שם המחנך/ת המדווח", doc.teacherName);
   html += infoRow("מייל המורה", doc.teacherEmail);
-  html += infoRow("טלפון המורה", f.teacherPhone);
+  html += infoRow("טלפון", f.teacherPhone);
   html += infoRow(
     "תאריך הגשה",
     doc.submittedAt
@@ -2921,27 +2942,34 @@ const generateSchoolQuestionnaireHTML = (doc) => {
 
   html += `<h2>סיבת ההפניה</h2><table class="info-table">`;
   html += infoRow("מי יזם את הפנייה?", f.referralInitiator);
-  html += infoRow("סיבות הפנייה המרכזיות", f.referralReasons);
-  html += infoRow("תיאור קשיי התלמיד", f.difficultyDescription);
+  html += infoRow("סיבות הפנייה", f.referralReasons);
+  html += infoRow("תיאור קשיי התלמיד/ה", f.difficultyDescription);
   html += `</table>`;
 
   html += `<h2>הישגים לימודיים ותפקוד</h2>`;
+  html += `<p style="font-weight:bold;margin:10px 0 5px;">מהלך לימודים בבית ספר:</p>`;
   html += dataTable(
-    ["כיתה", "בית ספר"],
+    ["כתה", "בית-ספר"],
     f.schoolHistory
       ?.filter((h) => h.grade || h.school)
       .map((h) => [h.grade, h.school]),
   );
   html += `<table class="info-table">`;
-  html += infoRow("רמה אקדמית בהשוואה לכיתה", f.academicLevel);
-  html += infoRow("האם נשאר כיתה?", f.stayedGrade);
   html += infoRow(
-    "באיזו כיתה ולמה?",
+    "הערך/י את הישגיו/ה הלימודיים בהשוואה להישגי הכיתה:",
+    f.academicLevel,
+  );
+  html += infoRow("האם נשאר/ה כיתה שנה נוספת?", f.stayedGrade);
+  html += infoRow(
+    "באיזו כיתה? / מה היו הסיבות לכך?",
     `${f.stayedGradeWhich || ""} ${f.stayedGradeReasons || ""}`.trim(),
   );
-  html += infoRow("ציונים בתעודה - כיתה", f.reportCardGrade);
-  html += infoRow("ציונים בתעודה - מחצית", f.reportCardHalf);
-  html += infoRow("ציונים בתעודה - שנה", f.reportCardYear);
+  html += infoRow(
+    "ציונים בתעודה שקיבל/ה לאחרונה - בכיתה",
+    f.reportCardGrade,
+  );
+  html += infoRow("במחצית", f.reportCardHalf);
+  html += infoRow("שנת", f.reportCardYear);
   html += `</table>`;
   html += dataTable(
     ["מקצוע", "ציון"],
@@ -2949,6 +2977,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
       ?.filter((g) => g.subject || g.grade)
       .map((g) => [g.subject, g.grade]),
   );
+  html += `<p style="font-weight:bold;margin:10px 0 5px;">שליטתו/ה במקצועות היסוד (פרט/י במיוחד לגבי תלמידים בכיתות א'-ד'):</p>`;
   html += `<table class="info-table">`;
   html += infoRow("קריאה", f.reading);
   html += infoRow("כתיבה", f.writing);
@@ -2956,46 +2985,67 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += `</table>`;
 
   html += `<h2>יחסים והתנהגות כללית</h2><table class="info-table">`;
-  html += infoRow("טיב היחס אל המורים", f.teacherRelation);
-  html += infoRow("הערות ליחס למורים", f.teacherRelationNotes);
-  html += infoRow("טיב היחסים עם בני הכיתה", f.peerRelation);
-  html += infoRow("בעיות חברתיות", f.peerProblems);
-  html += infoRow("1. דעתו מוסחת בקלות", f.distractedEasily);
-  html += infoRow("2. מתקשה להתרכז במשימות", f.hardToFocus);
-  html += infoRow("3. נע/מסתובב/מטפס באופן מוגזם", f.excessiveMovement);
-  html += infoRow("4. עוזב את הכיסא בשיעור", f.leavesSeats);
+  html += infoRow("מה טיב יחסו/ה של התלמיד/ה אל המורים?", f.teacherRelation);
+  html += infoRow("הערות", f.teacherRelationNotes);
+  html += infoRow(
+    "מה טיב יחסיו/ה של הילד/ה עם בני כיתתו/ה?",
+    f.peerRelation,
+  );
+  html += infoRow(
+    "אם קיימות בעיות בחברה, תאר/י אותן, באילו נסיבות הן מופיעות ומדוע?",
+    f.peerProblems,
+  );
+  html += `</table>`;
+  html += `<p style="font-weight:bold;margin:10px 0 5px;">הקף/י את המספר שמתאר באופן הטוב ביותר את התנהגות התלמיד/ה בבית הספר במהלך 6 החודשים האחרונים.</p>`;
+  html += `<table class="info-table">`;
+  html += infoRow("1. דעתו/ה מוסחת בקלות.", f.distractedEasily);
+  html += infoRow(
+    "2. מתקשה להתרכז במשימות או במשחקים.",
+    f.hardToFocus,
+  );
+  html += infoRow(
+    "3. נע/ה מסתובב/ת או שמטפס/ת באופן מוגזם במצבים בהם הדבר אינו מתאים.",
+    f.excessiveMovement,
+  );
+  html += infoRow(
+    "4. עוזב/ת את הכסא בכתה או במצבים אחרים בהם מצופה שימשיך/תמשיך לשבת.",
+    f.leavesSeats,
+  );
   html += `</table>`;
 
   if (f.behaviorRatings && Object.keys(f.behaviorRatings).length > 0) {
     html += `<h2>דירוג בעיות התנהגות מפורטות</h2><table class="info-table">`;
     Object.entries(f.behaviorRatings).forEach(([behavior, rating]) => {
-      html += infoRow(behavior, rating);
+      html += infoRow(SCHOOL_BEHAVIOR_LABELS[behavior] || behavior, rating);
     });
     html += `</table>`;
   }
 
   html += `<h2>עזרה מיוחדת, התערבות וסיכום</h2><table class="info-table">`;
   html += infoRow("שעות שילוב", f.integrationHours);
-  html += infoRow("היקף (שש)", f.integrationScope);
+  html += infoRow('בהיקף (ש"ש)', f.integrationScope);
   html += infoRow("כמה שנים", f.integrationYears);
   html += infoRow(
     "טיפול רגשי",
     `${f.emotionalTreatment || ""} ${f.emotionalTreatmentDetails ? `(${f.emotionalTreatmentDetails})` : ""}`.trim(),
   );
   html += infoRow(
-    "חינוך מיוחד",
+    "האם הילד/ה למד/ה במסגרת חינוך מיוחד?",
     `${f.specialEducation || ""} ${f.specialEdName ? `(${f.specialEdName})` : ""}`.trim(),
   );
   html += infoRow("עזרה אחרת", f.otherHelp);
-  html += infoRow("סכם התרשמותך מהתלמיד/ה", f.studentSummary);
-  html += infoRow("שאלה אבחונית או אחרת", f.diagnosticQuestion);
+  html += infoRow("סכם/י התרשמותך מהתלמיד/ה", f.studentSummary);
+  html += infoRow(
+    "שאלה אבחונית או אחרת הקיימת לגבי התלמיד/ה",
+    f.diagnosticQuestion,
+  );
   html += infoRow("ההתערבות הטיפולית המבוקשת", f.requestedIntervention);
   html += `</table>`;
 
   html += `<h2>חתימות</h2><table class="info-table">`;
-  html += infoRow("שם המחנך/ת (חתימה)", f.teacherSignatureName);
-  html += infoRow("חתימת מחנך/ת", f.teacherSignature || doc.teacherName);
-  html += infoRow("חתימת הנהלה", f.principalSignature);
+  html += infoRow("שם המחנך/ת", f.teacherSignatureName);
+  html += infoRow("חתימה", f.teacherSignature || doc.teacherName);
+  html += infoRow("חתימת מנהל/ת", f.principalSignature);
   html += infoRow("תאריך חתימה", f.signatureDate || f.date);
   html += `</table>`;
 

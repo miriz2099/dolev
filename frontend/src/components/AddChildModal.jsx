@@ -133,7 +133,7 @@ const AddChildModal = ({ isOpen, onClose, initialParentId = null }) => {
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden relative">
         <div className="bg-purple-600 p-6 text-white flex justify-between items-center">
-          <h2 className="text-xl font-bold">הוספת מטופל חדש (ילד\ה)</h2>
+          <h2 className="text-xl font-bold">הוספת מטופל חדש (ילד/ה)</h2>
           <button onClick={onClose} className="text-white text-3xl">
             &times;
           </button>

@@ -144,7 +144,15 @@ const ParentQuestionnaire = ({
     stayedGradeReason: "",
 
     // Step 4
-    functioning: { studies: "", family: "", social: "", notes: "" },
+    functioning: {
+      studies: "",
+      family: "",
+      social: "",
+      notes: "",
+      studiesDetails: "",
+      familyDetails: "",
+      socialDetails: "",
+    },
 
     // Step 5
     familyStructure: {
@@ -496,6 +504,18 @@ const ParentQuestionnaire = ({
       ],
     }));
 
+  const removeAssessmentRow = (index) => {
+    const assessment = formData.assessments[index];
+    const hasValue =
+      assessment.type || assessment.date || assessment.recommendations;
+    if (hasValue && !window.confirm("למחוק את פרטי האבחון?")) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      assessments: prev.assessments.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSibling = (index, field, value) => {
     const updated = [...formData.familyStructure.siblings];
     updated[index] = { ...updated[index], [field]: value };
@@ -701,9 +721,22 @@ const ParentQuestionnaire = ({
                         key={i}
                         className="border border-gray-200 rounded-lg p-3 bg-white space-y-3"
                       >
-                        <p className="text-xs font-bold text-gray-500">
-                          אבחון {i + 1}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-gray-500">
+                            אבחון {i + 1}
+                          </p>
+                          {formData.assessments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeAssessmentRow(i)}
+                              title="הסרת אבחון"
+                              aria-label="הסרת אבחון"
+                              className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:bg-red-100 hover:text-red-600 transition"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                           <InputField
                             label="איזה אבחון *"
@@ -929,58 +962,80 @@ const ParentQuestionnaire = ({
             <p className="text-sm font-bold text-gray-700">
               באופן כללי, להערכתכם, איך אתם מתארים את התפקוד של הילד/ה?
             </p>
-            <table
-              className="w-full border-collapse border border-gray-300 text-sm"
-              dir="rtl"
-            >
-              <thead>
-                <tr className="bg-blue-50">
-                  <th className="border border-gray-300 p-2 text-right w-1/4">
-                    תחומי התפקוד
-                  </th>
-                  <th className="border border-gray-300 p-2 text-center">
-                    מצוין
-                  </th>
-                  <th className="border border-gray-300 p-2 text-center">
-                    טוב
-                  </th>
-                  <th className="border border-gray-300 p-2 text-center">
-                    מתקשה
-                  </th>
-                  <th className="border border-gray-300 p-2 text-center">
-                    מתקשה מאד
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { key: "studies", label: "בלימודים" },
-                  { key: "family", label: "במשפחה" },
-                  { key: "social", label: "בחברה" },
-                ].map(({ key, label }) => (
-                  <tr key={key}>
-                    <td className="border border-gray-300 p-2 font-bold">
-                      {label}
-                    </td>
-                    {["מצוין", "טוב", "מתקשה", "מתקשה מאד"].map((opt) => (
-                      <td
-                        key={opt}
-                        className="border border-gray-300 p-2 text-center"
-                      >
-                        <input
-                          type="radio"
-                          name={`functioning_${key}`}
-                          value={opt}
-                          checked={formData.functioning[key] === opt}
-                          onChange={() => handleNested("functioning", key, opt)}
-                          className="w-4 h-4"
+            <div className="overflow-x-auto">
+              <table
+                className="w-full border-collapse border border-gray-300 text-sm"
+                dir="rtl"
+              >
+                <thead>
+                  <tr className="bg-blue-50">
+                    <th className="border border-gray-300 p-2 text-right w-1/4">
+                      תחומי התפקוד
+                    </th>
+                    <th className="border border-gray-300 p-2 text-center">
+                      מצוין
+                    </th>
+                    <th className="border border-gray-300 p-2 text-center">
+                      טוב
+                    </th>
+                    <th className="border border-gray-300 p-2 text-center">
+                      מתקשה
+                    </th>
+                    <th className="border border-gray-300 p-2 text-center">
+                      מתקשה מאד
+                    </th>
+                    <th className="border border-gray-300 p-2 text-right w-1/3">
+                      פירוט מילולי
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { key: "studies", label: "בלימודים" },
+                    { key: "family", label: "במשפחה" },
+                    { key: "social", label: "בחברה" },
+                  ].map(({ key, label }) => (
+                    <tr key={key}>
+                      <td className="border border-gray-300 p-2 font-bold">
+                        {label}
+                      </td>
+                      {["מצוין", "טוב", "מתקשה", "מתקשה מאד"].map((opt) => (
+                        <td
+                          key={opt}
+                          className="border border-gray-300 p-2 text-center"
+                        >
+                          <input
+                            type="radio"
+                            name={`functioning_${key}`}
+                            value={opt}
+                            checked={formData.functioning[key] === opt}
+                            onChange={() =>
+                              handleNested("functioning", key, opt)
+                            }
+                            className="w-4 h-4"
+                          />
+                        </td>
+                      ))}
+                      <td className="border border-gray-300 p-1">
+                        <textarea
+                          rows={2}
+                          value={formData.functioning[`${key}Details`] || ""}
+                          onChange={(e) =>
+                            handleNested(
+                              "functioning",
+                              `${key}Details`,
+                              e.target.value,
+                            )
+                          }
+                          placeholder="אפשר לפרט כאן (לא חובה)"
+                          className="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                       </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <TextAreaField
               label="הערות"
               value={formData.functioning.notes}
@@ -1125,7 +1180,7 @@ const ParentQuestionnaire = ({
               </tbody>
             </table>
 
-            <p className="text-sm font-bold text-gray-700 mt-4">אחים\אחיות:</p>
+            <p className="text-sm font-bold text-gray-700 mt-4">אחים/אחיות:</p>
             <table
               className="w-full border-collapse border border-gray-300 text-sm"
               dir="rtl"

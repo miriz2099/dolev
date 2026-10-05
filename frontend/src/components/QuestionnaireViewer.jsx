@@ -1005,8 +1005,26 @@ const QuestionnaireViewer = ({ data }) => {
       {/* 4. הערכת תפקוד */}
       <RenderSection title="הערכת תפקוד כללית">
         <AnswerBox label="תפקוד לימודי" value={formData.functioning?.studies} />
+        {formData.functioning?.studiesDetails && (
+          <AnswerBox
+            label="פירוט - תפקוד לימודי"
+            value={formData.functioning.studiesDetails}
+          />
+        )}
         <AnswerBox label="תפקוד משפחתי" value={formData.functioning?.family} />
+        {formData.functioning?.familyDetails && (
+          <AnswerBox
+            label="פירוט - תפקוד משפחתי"
+            value={formData.functioning.familyDetails}
+          />
+        )}
         <AnswerBox label="תפקוד חברתי" value={formData.functioning?.social} />
+        {formData.functioning?.socialDetails && (
+          <AnswerBox
+            label="פירוט - תפקוד חברתי"
+            value={formData.functioning.socialDetails}
+          />
+        )}
         <AnswerBox
           label="הערות תפקוד"
           value={formData.functioning?.notes}
