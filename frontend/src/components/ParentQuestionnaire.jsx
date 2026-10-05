@@ -492,7 +492,11 @@ const ParentQuestionnaire = ({
 
       // קריאה לפונקציה המאוחדת בסרביס
       // הפונקציה הזו בבאקנד תדאג גם לשמור את השאלון וגם לעדכן את הסטטוס ל"נשלח"
-      await childService.submitParentQuestionnaire(diagnosisId, formData, token);
+      await childService.submitParentQuestionnaire(
+        diagnosisId,
+        formData,
+        token,
+      );
 
       setSaveStatus("השאלון נשלח בהצלחה!");
 
@@ -817,18 +821,14 @@ const ParentQuestionnaire = ({
                           <InputField
                             label="איזה אבחון *"
                             value={assessment.type}
-                            onChange={(v) =>
-                              handleAssessment(i, "type", v)
-                            }
+                            onChange={(v) => handleAssessment(i, "type", v)}
                             error={isMissing(`assessments.${i}.type`)}
                           />
                           <InputField
                             label="תאריך האבחון *"
                             type="date"
                             value={assessment.date}
-                            onChange={(v) =>
-                              handleAssessment(i, "date", v)
-                            }
+                            onChange={(v) => handleAssessment(i, "date", v)}
                             maxDate={new Date()}
                             error={isMissing(`assessments.${i}.date`)}
                           />
@@ -839,9 +839,7 @@ const ParentQuestionnaire = ({
                           onChange={(v) =>
                             handleAssessment(i, "recommendations", v)
                           }
-                          error={isMissing(
-                            `assessments.${i}.recommendations`,
-                          )}
+                          error={isMissing(`assessments.${i}.recommendations`)}
                         />
                       </div>
                     ))}
@@ -1660,9 +1658,7 @@ const ParentQuestionnaire = ({
                     v,
                   )
                 }
-                error={isMissing(
-                  "currentProblems.difficultyCompletingTasks",
-                )}
+                error={isMissing("currentProblems.difficultyCompletingTasks")}
               />
               <InputField
                 label="האם זקוק/ה לתשומת לב רבה במיוחד? *"
@@ -1678,9 +1674,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "dependencyVsIndependence", v)
                 }
-                error={isMissing(
-                  "currentProblems.dependencyVsIndependence",
-                )}
+                error={isMissing("currentProblems.dependencyVsIndependence")}
               />
               <InputField
                 label="אחר:"
@@ -1803,7 +1797,7 @@ const ParentQuestionnaire = ({
                 error={isMissing("signatureDate")}
               />
               <InputField
-                label="חתימת ההורים *"
+                label="ההורה הממלא *"
                 value={formData.parentsSignature}
                 onChange={(v) => handleChange("parentsSignature", v)}
                 error={isMissing("parentsSignature")}
@@ -1851,23 +1845,18 @@ const ParentQuestionnaire = ({
       add("תיאור הקושי", "difficultyDescription");
     if (!formData.referralGoals) add("מטרות הפנייה", "referralGoals");
     if (!formData.onsetTime) add("מתי התחילו הקשיים", "onsetTime");
-    if (!formData.hadAssessment)
-      add("האם עבר אבחון בעבר", "hadAssessment");
+    if (!formData.hadAssessment) add("האם עבר אבחון בעבר", "hadAssessment");
     if (formData.hadAssessment === "כן") {
       const assessments = formData.assessments || [];
       if (assessments.length === 0) {
         add("פרטי האבחון שעבר", "assessments");
       } else {
         assessments.forEach((a, i) => {
-          if (!a.type)
-            add(`סוג האבחון ${i + 1} שעבר`, `assessments.${i}.type`);
+          if (!a.type) add(`סוג האבחון ${i + 1} שעבר`, `assessments.${i}.type`);
           if (!a.date)
             add(`תאריך האבחון ${i + 1} שעבר`, `assessments.${i}.date`);
           if (!a.recommendations)
-            add(
-              `המלצות האבחון ${i + 1}`,
-              `assessments.${i}.recommendations`,
-            );
+            add(`המלצות האבחון ${i + 1}`, `assessments.${i}.recommendations`);
         });
       }
     }
@@ -1875,8 +1864,7 @@ const ParentQuestionnaire = ({
       add("טיפולים פרא-רפואיים", "paraMedicalTreatments");
     if (!formData.expressedDistress)
       add("ביטוי מצוקה של הילד/ה", "expressedDistress");
-    if (!formData.willingToConsult)
-      add("נכונות להתייעץ", "willingToConsult");
+    if (!formData.willingToConsult) add("נכונות להתייעץ", "willingToConsult");
 
     // --- שלב 3: מהלך הלימודים ---
     currentStep = 3;
@@ -1886,8 +1874,7 @@ const ParentQuestionnaire = ({
       add("סוג מסגרת ראשונה", "firstFrameworkType");
     if (!formData.prePreSchoolReports)
       add("דיווחים מגן טרום חובה", "prePreSchoolReports");
-    if (!formData.preSchoolReports)
-      add("דיווחים מגן חובה", "preSchoolReports");
+    if (!formData.preSchoolReports) add("דיווחים מגן חובה", "preSchoolReports");
 
     // --- שלב 4: הערכת תפקוד ---
     currentStep = 4;
@@ -1978,10 +1965,7 @@ const ParentQuestionnaire = ({
     if (!curr.needsSpecialAttention)
       add("צורך בתשומת לב מיוחדת", "currentProblems.needsSpecialAttention");
     if (!curr.dependencyVsIndependence)
-      add(
-        "תלותיות מול עצמאות",
-        "currentProblems.dependencyVsIndependence",
-      );
+      add("תלותיות מול עצמאות", "currentProblems.dependencyVsIndependence");
     if (!curr.closerToWho)
       add("למי הילד/ה קרוב/ה יותר", "currentProblems.closerToWho");
 
@@ -1999,8 +1983,7 @@ const ParentQuestionnaire = ({
 
     // --- שלב 10: סדר יום וחתימה ---
     currentStep = 10;
-    if (!formData.parentsSignature)
-      add("חתימת ההורים", "parentsSignature");
+    if (!formData.parentsSignature) add("חתימת ההורים", "parentsSignature");
     if (!formData.signatureDate) add("תאריך חתימה", "signatureDate");
 
     return {
@@ -2016,9 +1999,8 @@ const ParentQuestionnaire = ({
   const currentStepMissingCount = validation.missingByStep.filter(
     (m) => m.step === step,
   ).length;
-  const missingStepsCount = new Set(
-    validation.missingByStep.map((m) => m.step),
-  ).size;
+  const missingStepsCount = new Set(validation.missingByStep.map((m) => m.step))
+    .size;
 
   return (
     <div
@@ -2058,12 +2040,11 @@ const ParentQuestionnaire = ({
             role="alert"
           >
             <p className="font-bold text-red-700">
-              לא ניתן לשלוח עדיין: חסרים {validation.missingFields.length}{" "}
-              שדות חובה ב-{missingStepsCount} עמודים
+              לא ניתן לשלוח עדיין: חסרים {validation.missingFields.length} שדות
+              חובה ב-{missingStepsCount} עמודים
             </p>
             <p className="text-xs text-red-600 mt-1 mb-3">
-              לחצו על עמוד אדום כדי לעבור אליו. השדות החסרים מסומנים בו
-              באדום.
+              לחצו על עמוד אדום כדי לעבור אליו. השדות החסרים מסומנים בו באדום.
             </p>
             <div className="flex flex-wrap gap-2">
               {STEPS.map((stepLabel, idx) => {
