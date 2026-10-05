@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getAuth } from "firebase/auth";
 import childService from "../services/child.service";
 import HebrewDateInput from "./HebrewDateInput";
-import { formatTime } from "../utils/dateFormat";
+import { formatTime, toYMD } from "../utils/dateFormat";
 
 import { storage } from "../firebase"; // הייצוא שיצרנו בשלב הקודם
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -17,38 +17,59 @@ const InputField = ({
   className = "",
   wide = false,
   maxDate,
+  error = false,
 }) => (
   <div
     className={`flex flex-col gap-1 ${wide ? "col-span-2" : ""} ${className}`}
+    data-missing={error ? "true" : undefined}
   >
-    <label className="text-sm font-bold text-gray-700">{label}</label>
+    <label
+      className={`text-sm font-bold ${error ? "text-red-700" : "text-gray-700"}`}
+    >
+      {label}
+    </label>
     {type === "date" ? (
       <HebrewDateInput
         value={value}
         onChange={onChange}
         maxDate={maxDate}
-        className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full"
+        className={`border p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full ${
+          error ? "border-red-500 bg-red-50" : "border-gray-300"
+        }`}
       />
     ) : (
       <input
         type={type}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+        className={`border p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+          error ? "border-red-500 bg-red-50" : "border-gray-300"
+        }`}
       />
     )}
+    {error && <span className="text-xs text-red-600">שדה חובה</span>}
   </div>
 );
 
-const TextAreaField = ({ label, value, onChange, rows = 3 }) => (
-  <div className="flex flex-col gap-1">
-    <label className="text-sm font-bold text-gray-700">{label}</label>
+const TextAreaField = ({ label, value, onChange, rows = 3, error = false }) => (
+  <div
+    className="flex flex-col gap-1"
+    data-missing={error ? "true" : undefined}
+  >
+    <label
+      className={`text-sm font-bold ${error ? "text-red-700" : "text-gray-700"}`}
+    >
+      {label}
+    </label>
     <textarea
       rows={rows}
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
-      className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+      className={`border p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+        error ? "border-red-500 bg-red-50" : "border-gray-300"
+      }`}
     />
+    {error && <span className="text-xs text-red-600">שדה חובה</span>}
   </div>
 );
 
@@ -97,6 +118,7 @@ const ParentQuestionnaire = ({
 
   const [step, setStep] = useState(1);
   const [saveStatus, setSaveStatus] = useState("");
+  const [showMissing, setShowMissing] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toLocaleDateString("he-IL"),
 
@@ -233,7 +255,7 @@ const ParentQuestionnaire = ({
       { time: "", activity: "" },
     ],
     parentsSignature: "",
-    signatureDate: "",
+    signatureDate: toYMD(new Date()),
   });
 
   const scrollToTop = () => {
@@ -241,6 +263,27 @@ const ParentQuestionnaire = ({
       formTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
+
+  // כש-showMissing פעיל, אחרי כל מעבר שלב גוללים לשדה החסר הראשון בעמוד
+  // הנוכחי (ושמים עליו פוקוס); אם אין שדה חסר בעמוד הזה, גוללים לראש הטופס
+  useEffect(() => {
+    if (!showMissing) return;
+
+    const timer = setTimeout(() => {
+      const el = document.querySelector('[data-missing="true"]');
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusable = el.matches("input, textarea, select")
+          ? el
+          : el.querySelector("input, textarea, select");
+        if (focusable) focusable.focus();
+      } else {
+        scrollToTop();
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [step, showMissing]);
 
   // const handleFileUpload = async (e) => {
   //   const files = Array.from(e.target.files);
@@ -435,12 +478,9 @@ const ParentQuestionnaire = ({
   };
 
   const handleFinalSubmit = async () => {
-    const validation = validateAllSteps();
-
     if (!validation.isValid) {
-      setSaveStatus(
-        `לא ניתן לשלוח: חסרים שדות חובה (${validation.missingFields.join(", ")})`,
-      );
+      setShowMissing(true);
+      setSaveStatus("");
       scrollToTop();
       return; // עוצר את השליחה
     }
@@ -560,31 +600,46 @@ const ParentQuestionnaire = ({
                 label="שם פרטי של הילד/ה *"
                 value={formData.childFirstName}
                 onChange={(v) => handleChange("childFirstName", v)}
+                error={isMissing("childFirstName")}
               />
               <InputField
                 label="שם משפחה *"
                 value={formData.childLastName}
                 onChange={(v) => handleChange("childLastName", v)}
+                error={isMissing("childLastName")}
               />
 
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-bold text-gray-700">
+              <div
+                className="flex flex-col gap-1"
+                data-missing={isMissing("gender") ? "true" : undefined}
+              >
+                <label
+                  className={`text-sm font-bold ${isMissing("gender") ? "text-red-700" : "text-gray-700"}`}
+                >
                   מגדר *
                 </label>
                 <select
                   value={formData.gender || ""}
                   onChange={(e) => handleChange("gender", e.target.value)}
-                  className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  className={`border p-2 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white ${
+                    isMissing("gender")
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-300"
+                  }`}
                 >
                   <option value="">בחר/י מגדר</option>
                   <option value="בן">בן</option>
                   <option value="בת">בת</option>
                 </select>
+                {isMissing("gender") && (
+                  <span className="text-xs text-red-600">שדה חובה</span>
+                )}
               </div>
               <InputField
                 label="ת.ז *"
                 value={formData.idNumber}
                 onChange={(v) => handleChange("idNumber", v)}
+                error={isMissing("idNumber")}
               />
               <InputField
                 label="תאריך לידה *"
@@ -592,11 +647,13 @@ const ParentQuestionnaire = ({
                 value={formData.birthDate}
                 onChange={(v) => handleChange("birthDate", v)}
                 maxDate={new Date()}
+                error={isMissing("birthDate")}
               />
               <InputField
                 label="ארץ לידה *"
                 value={formData.birthCountry}
                 onChange={(v) => handleChange("birthCountry", v)}
+                error={isMissing("birthCountry")}
               />
               <InputField
                 label="תאריך עלייה"
@@ -607,16 +664,19 @@ const ParentQuestionnaire = ({
                 label="שם האב *"
                 value={formData.fatherName}
                 onChange={(v) => handleChange("fatherName", v)}
+                error={isMissing("fatherName")}
               />
               <InputField
                 label="שם האם *"
                 value={formData.motherName}
                 onChange={(v) => handleChange("motherName", v)}
+                error={isMissing("motherName")}
               />
               <InputField
                 label="מצב משפחתי (הורים) *"
                 value={formData.familyStatus}
                 onChange={(v) => handleChange("familyStatus", v)}
+                error={isMissing("familyStatus")}
               />
             </div>
             <TextAreaField
@@ -629,26 +689,31 @@ const ParentQuestionnaire = ({
                 label="כתובת *"
                 value={formData.address}
                 onChange={(v) => handleChange("address", v)}
+                error={isMissing("address")}
               />
               <InputField
                 label="מספר טלפון *"
                 value={formData.phone}
                 onChange={(v) => handleChange("phone", v)}
+                error={isMissing("phone")}
               />
               <InputField
                 label="בית ספר/גן *"
                 value={formData.schoolOrGarden}
                 onChange={(v) => handleChange("schoolOrGarden", v)}
+                error={isMissing("schoolOrGarden")}
               />
               <InputField
                 label="כיתה *"
                 value={formData.grade}
                 onChange={(v) => handleChange("grade", v)}
+                error={isMissing("grade")}
               />
               <InputField
                 label="שפה מדוברת בבית *"
                 value={formData.homeLanguage}
                 onChange={(v) => handleChange("homeLanguage", v)}
+                error={isMissing("homeLanguage")}
               />
             </div>
           </div>
@@ -663,24 +728,35 @@ const ParentQuestionnaire = ({
               value={formData.difficultyDescription}
               onChange={(v) => handleChange("difficultyDescription", v)}
               rows={4}
+              error={isMissing("difficultyDescription")}
             />
             <TextAreaField
               label="מטרות הפנייה *"
               value={formData.referralGoals}
               onChange={(v) => handleChange("referralGoals", v)}
               rows={4}
+              error={isMissing("referralGoals")}
             />
             <InputField
               label="מתי התחילו הקשיים? *"
               value={formData.onsetTime}
               onChange={(v) => handleChange("onsetTime", v)}
+              error={isMissing("onsetTime")}
             />
 
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-              <p className="font-bold text-gray-700 text-sm">
+            <div
+              className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3"
+              data-missing={isMissing("hadAssessment") ? "true" : undefined}
+            >
+              <p
+                className={`font-bold text-sm ${isMissing("hadAssessment") ? "text-red-700" : "text-gray-700"}`}
+              >
                 האם הילד/ה עבר/ה אבחון פסיכולוגי, או אחר (כגון: נוירולוגי / ר.
                 בעיסוק / ק. תקשורת)? *
               </p>
+              {isMissing("hadAssessment") && (
+                <span className="text-xs text-red-600">שדה חובה</span>
+              )}
 
               {/* בחירת כן/לא */}
               <div className="flex gap-4 mb-4">
@@ -744,6 +820,7 @@ const ParentQuestionnaire = ({
                             onChange={(v) =>
                               handleAssessment(i, "type", v)
                             }
+                            error={isMissing(`assessments.${i}.type`)}
                           />
                           <InputField
                             label="תאריך האבחון *"
@@ -753,6 +830,7 @@ const ParentQuestionnaire = ({
                               handleAssessment(i, "date", v)
                             }
                             maxDate={new Date()}
+                            error={isMissing(`assessments.${i}.date`)}
                           />
                         </div>
                         <TextAreaField
@@ -761,6 +839,9 @@ const ParentQuestionnaire = ({
                           onChange={(v) =>
                             handleAssessment(i, "recommendations", v)
                           }
+                          error={isMissing(
+                            `assessments.${i}.recommendations`,
+                          )}
                         />
                       </div>
                     ))}
@@ -835,16 +916,19 @@ const ParentQuestionnaire = ({
               label="האם הילד/ה היה/הייתה בטיפול פרא רפואי כגון ריפוי בעיסוק, קלינאית תקשורת, פיזיותרפיה או אחר? *"
               value={formData.paraMedicalTreatments}
               onChange={(v) => handleChange("paraMedicalTreatments", v)}
+              error={isMissing("paraMedicalTreatments")}
             />
             <InputField
               label="האם הילד/ה דיבר/ה על מצוקת חששות, חרדות, פחדים? *"
               value={formData.expressedDistress}
               onChange={(v) => handleChange("expressedDistress", v)}
+              error={isMissing("expressedDistress")}
             />
             <InputField
               label="האם הילד הביע רצון או נכונות להתייעץ עם איש מקצוע? *"
               value={formData.willingToConsult}
               onChange={(v) => handleChange("willingToConsult", v)}
+              error={isMissing("willingToConsult")}
             />
           </div>
         );
@@ -858,22 +942,26 @@ const ParentQuestionnaire = ({
                 label='באיזה גיל יצא/ה לראשונה למסגרת לימודית (מעון/גן/בי"ס)? *'
                 value={formData.firstFrameworkAge}
                 onChange={(v) => handleChange("firstFrameworkAge", v)}
+                error={isMissing("firstFrameworkAge")}
               />
               <InputField
                 label="לאיזו מסגרת? *"
                 value={formData.firstFrameworkType}
                 onChange={(v) => handleChange("firstFrameworkType", v)}
+                error={isMissing("firstFrameworkType")}
               />
             </div>
             <TextAreaField
               label="האם הילד/ה ביקר/ה בגן טרום חובה? אם כן מה היו הדיווחים על תפקודו/ה שם? *"
               value={formData.prePreSchoolReports}
               onChange={(v) => handleChange("prePreSchoolReports", v)}
+              error={isMissing("prePreSchoolReports")}
             />
             <TextAreaField
               label="מה היו הדיווחים על התפקוד בגן-חובה? אם נשאר/ה שנה נוספת בגן חובה - מה הייתה הסיבה לכך? *"
               value={formData.preSchoolReports}
               onChange={(v) => handleChange("preSchoolReports", v)}
+              error={isMissing("preSchoolReports")}
             />
             <div>
               <p className="text-sm font-bold text-gray-700 mb-2">
@@ -995,8 +1083,19 @@ const ParentQuestionnaire = ({
                     { key: "family", label: "במשפחה" },
                     { key: "social", label: "בחברה" },
                   ].map(({ key, label }) => (
-                    <tr key={key}>
-                      <td className="border border-gray-300 p-2 font-bold">
+                    <tr
+                      key={key}
+                      data-missing={
+                        isMissing(`functioning.${key}`) ? "true" : undefined
+                      }
+                    >
+                      <td
+                        className={`border border-gray-300 p-2 font-bold ${
+                          isMissing(`functioning.${key}`)
+                            ? "text-red-700 bg-red-50"
+                            : ""
+                        }`}
+                      >
                         {label}
                       </td>
                       {["מצוין", "טוב", "מתקשה", "מתקשה מאד"].map((opt) => (
@@ -1056,10 +1155,14 @@ const ParentQuestionnaire = ({
               <thead>
                 <tr className="bg-blue-50">
                   <th className="border border-gray-300 p-2 text-right"></th>
-                  <th className="border border-gray-300 p-2 text-right">שם</th>
-                  <th className="border border-gray-300 p-2 text-right">גיל</th>
                   <th className="border border-gray-300 p-2 text-right">
-                    עיסוק
+                    שם *
+                  </th>
+                  <th className="border border-gray-300 p-2 text-right">
+                    גיל *
+                  </th>
+                  <th className="border border-gray-300 p-2 text-right">
+                    עיסוק *
                   </th>
                   <th className="border border-gray-300 p-2 text-right">
                     הערות
@@ -1079,7 +1182,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.motherNameInTable")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.motherNameInTable")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1092,7 +1204,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.motherAge")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.motherAge")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1105,7 +1226,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.motherJob")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.motherJob")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1134,7 +1264,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.fatherNameInTable")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.fatherNameInTable")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1147,7 +1286,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.fatherAge")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.fatherAge")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1160,7 +1308,16 @@ const ParentQuestionnaire = ({
                           e.target.value,
                         )
                       }
-                      className="w-full outline-none p-1 rounded"
+                      data-missing={
+                        isMissing("familyStructure.fatherJob")
+                          ? "true"
+                          : undefined
+                      }
+                      className={`w-full outline-none p-1 rounded ${
+                        isMissing("familyStructure.fatherJob")
+                          ? "border border-red-500 bg-red-50"
+                          : ""
+                      }`}
                     />
                   </td>
                   <td className="border border-gray-300 p-1">
@@ -1258,6 +1415,7 @@ const ParentQuestionnaire = ({
               label="מה מצב בריאותו/ה הכללי של הילד/ה? *"
               value={formData.generalHealth}
               onChange={(v) => handleChange("generalHealth", v)}
+              error={isMissing("generalHealth")}
             />
             <div className="grid grid-cols-2 gap-4">
               <InputField
@@ -1289,12 +1447,14 @@ const ParentQuestionnaire = ({
               label="האם הילד/ה סובל או סבל בעבר ממחלה? *"
               value={formData.pastDiseases}
               onChange={(v) => handleChange("pastDiseases", v)}
+              error={isMissing("pastDiseases")}
             />
             <div className="grid grid-cols-3 gap-4">
               <InputField
                 label="אשפוז? *"
                 value={formData.hospitalization}
                 onChange={(v) => handleChange("hospitalization", v)}
+                error={isMissing("hospitalization")}
               />
               <InputField
                 label="באיזה גיל?"
@@ -1316,6 +1476,7 @@ const ParentQuestionnaire = ({
               label="האם נוטל תרופות באופן קבוע? *"
               value={formData.regularMedications}
               onChange={(v) => handleChange("regularMedications", v)}
+              error={isMissing("regularMedications")}
             />
           </div>
         );
@@ -1331,6 +1492,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "plannedPregnancy", v)
                 }
+                error={isMissing("development.plannedPregnancy")}
               />
               <InputField
                 label="האם ההיריון היה תקין? (כן / לא) *"
@@ -1338,6 +1500,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "normalPregnancy", v)
                 }
+                error={isMissing("development.normalPregnancy")}
               />
             </div>
             <InputField
@@ -1346,23 +1509,27 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("development", "pregnancyDetails", v)
               }
+              error={isMissing("development.pregnancyDetails")}
             />
             <div className="grid grid-cols-2 gap-4">
               <InputField
                 label="האם הלידה הייתה תקינה? (כן / לא) *"
                 value={formData.development.normalBirth}
                 onChange={(v) => handleNested("development", "normalBirth", v)}
+                error={isMissing("development.normalBirth")}
               />
               <InputField
                 label="משקל הלידה *"
                 value={formData.development.birthWeight}
                 onChange={(v) => handleNested("development", "birthWeight", v)}
+                error={isMissing("development.birthWeight")}
               />
             </div>
             <InputField
               label="פרט על הלידה *"
               value={formData.development.birthDetails}
               onChange={(v) => handleNested("development", "birthDetails", v)}
+              error={isMissing("development.birthDetails")}
             />
             <InputField
               label="האם הופיעו בעיות רפואיות לאחר הלידה? *"
@@ -1370,6 +1537,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("development", "problemsAfterBirthChild", v)
               }
+              error={isMissing("development.problemsAfterBirthChild")}
             />
             <InputField
               label="האם האם סבלה מבעיות רפואיות לאחר הלידה? *"
@@ -1377,6 +1545,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("development", "problemsAfterBirthMother", v)
               }
+              error={isMissing("development.problemsAfterBirthMother")}
             />
             <div className="grid grid-cols-2 gap-4">
               <InputField
@@ -1385,11 +1554,13 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "normalMotorDev", v)
                 }
+                error={isMissing("development.normalMotorDev")}
               />
               <InputField
                 label="מתי התחיל/ה ללכת? *"
                 value={formData.development.walkingAge}
                 onChange={(v) => handleNested("development", "walkingAge", v)}
+                error={isMissing("development.walkingAge")}
               />
               <InputField
                 label="האם ההתפתחות השפתית הייתה תקינה? *"
@@ -1397,6 +1568,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "normalLanguageDev", v)
                 }
+                error={isMissing("development.normalLanguageDev")}
               />
               <InputField
                 label="מתי דיבר/ה לראשונה? *"
@@ -1404,6 +1576,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "firstWordsAge", v)
                 }
+                error={isMissing("development.firstWordsAge")}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1413,6 +1586,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "sleepIssuesFirstYear", v)
                 }
+                error={isMissing("development.sleepIssuesFirstYear")}
               />
               <InputField
                 label="האם היו קשיי אכילה בשנה הראשונה? *"
@@ -1420,6 +1594,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("development", "eatingIssuesFirstYear", v)
                 }
+                error={isMissing("development.eatingIssuesFirstYear")}
               />
             </div>
             <InputField
@@ -1428,6 +1603,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("development", "diaperGraduationAge", v)
               }
+              error={isMissing("development.diaperGraduationAge")}
             />
           </div>
         );
@@ -1446,6 +1622,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("currentProblems", "foodSleepFearsDetails", v)
               }
+              error={isMissing("currentProblems.foodSleepFearsDetails")}
             />
             <SubTitle>במסגרת הבית:</SubTitle>
             <div className="space-y-3">
@@ -1455,6 +1632,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "restlessness", v)
                 }
+                error={isMissing("currentProblems.restlessness")}
               />
               <InputField
                 label="מתרגש/ת בקלות? *"
@@ -1462,6 +1640,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "excitedEasily", v)
                 }
+                error={isMissing("currentProblems.excitedEasily")}
               />
               <InputField
                 label="מפריע/ה לאחרים? *"
@@ -1469,6 +1648,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "disturbsOthers", v)
                 }
+                error={isMissing("currentProblems.disturbsOthers")}
               />
               <InputField
                 label="האם מתקשה להתמיד ולסיים משימות? *"
@@ -1480,6 +1660,9 @@ const ParentQuestionnaire = ({
                     v,
                   )
                 }
+                error={isMissing(
+                  "currentProblems.difficultyCompletingTasks",
+                )}
               />
               <InputField
                 label="האם זקוק/ה לתשומת לב רבה במיוחד? *"
@@ -1487,6 +1670,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "needsSpecialAttention", v)
                 }
+                error={isMissing("currentProblems.needsSpecialAttention")}
               />
               <InputField
                 label="תלותי/ת / עצמאי/ת? *"
@@ -1494,6 +1678,9 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "dependencyVsIndependence", v)
                 }
+                error={isMissing(
+                  "currentProblems.dependencyVsIndependence",
+                )}
               />
               <InputField
                 label="אחר:"
@@ -1508,6 +1695,7 @@ const ParentQuestionnaire = ({
                 onChange={(v) =>
                   handleNested("currentProblems", "closerToWho", v)
                 }
+                error={isMissing("currentProblems.closerToWho")}
               />
             </div>
           </div>
@@ -1521,11 +1709,13 @@ const ParentQuestionnaire = ({
               label="האם יש לילדך/ילדתך חברים? *"
               value={formData.social.hasFriends}
               onChange={(v) => handleNested("social", "hasFriends", v)}
+              error={isMissing("social.hasFriends")}
             />
             <InputField
               label="האם הוא/היא מאד חברותי/ת או שיש לו/לה מספר חברים מועט? *"
               value={formData.social.socialLevel}
               onChange={(v) => handleNested("social", "socialLevel", v)}
+              error={isMissing("social.socialLevel")}
             />
             <InputField
               label="האם יש לו/לה קשרים חברתיים קרובים ומשמעותיים? *"
@@ -1533,6 +1723,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("social", "meaningfulConnections", v)
               }
+              error={isMissing("social.meaningfulConnections")}
             />
             <InputField
               label="האם יש לו/לה קשרים עם בני המין השני? *"
@@ -1540,6 +1731,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("social", "oppositeSexConnections", v)
               }
+              error={isMissing("social.oppositeSexConnections")}
             />
             <TextAreaField
               label="האם יש לו/לה בעיות חברתיות? פרט: *"
@@ -1547,6 +1739,7 @@ const ParentQuestionnaire = ({
               onChange={(v) =>
                 handleNested("social", "socialProblemsDetails", v)
               }
+              error={isMissing("social.socialProblemsDetails")}
             />
           </div>
         );
@@ -1603,13 +1796,17 @@ const ParentQuestionnaire = ({
             <div className="grid grid-cols-2 gap-4 mt-6">
               <InputField
                 label="תאריך *"
+                type="date"
                 value={formData.signatureDate}
                 onChange={(v) => handleChange("signatureDate", v)}
+                maxDate={new Date()}
+                error={isMissing("signatureDate")}
               />
               <InputField
                 label="חתימת ההורים *"
                 value={formData.parentsSignature}
                 onChange={(v) => handleChange("parentsSignature", v)}
+                error={isMissing("parentsSignature")}
               />
             </div>
           </div>
@@ -1622,140 +1819,207 @@ const ParentQuestionnaire = ({
 
   const validateAllSteps = () => {
     const missingFields = [];
+    const missingByStep = [];
+    const missingKeys = new Set();
+    let currentStep = 1;
+    const add = (label, key) => {
+      missingFields.push(label);
+      missingByStep.push({ step: currentStep, label, key });
+      missingKeys.add(key);
+    };
 
     // --- שלב 1: פרטים אישיים ---
-    if (!formData.childFirstName) missingFields.push("שם פרטי של הילד/ה");
-    if (!formData.childLastName) missingFields.push("שם משפחה");
-    if (!formData.gender) missingFields.push("מגדר");
-    if (!formData.idNumber) missingFields.push("ת.ז");
-    if (!formData.birthDate) missingFields.push("תאריך לידה");
-    if (!formData.birthCountry) missingFields.push("ארץ לידה");
-    if (!formData.fatherName) missingFields.push("שם האב");
-    if (!formData.motherName) missingFields.push("שם האם");
-    if (!formData.familyStatus) missingFields.push("מצב משפחתי");
-    if (!formData.address) missingFields.push("כתובת");
-    if (!formData.phone) missingFields.push("מספר טלפון");
-    if (!formData.schoolOrGarden) missingFields.push("בית ספר/גן");
-    if (!formData.grade) missingFields.push("כיתה");
-    if (!formData.homeLanguage) missingFields.push("שפה מדוברת בבית");
+    currentStep = 1;
+    if (!formData.childFirstName) add("שם פרטי של הילד/ה", "childFirstName");
+    if (!formData.childLastName) add("שם משפחה", "childLastName");
+    if (!formData.gender) add("מגדר", "gender");
+    if (!formData.idNumber) add("ת.ז", "idNumber");
+    if (!formData.birthDate) add("תאריך לידה", "birthDate");
+    if (!formData.birthCountry) add("ארץ לידה", "birthCountry");
+    if (!formData.fatherName) add("שם האב", "fatherName");
+    if (!formData.motherName) add("שם האם", "motherName");
+    if (!formData.familyStatus) add("מצב משפחתי", "familyStatus");
+    if (!formData.address) add("כתובת", "address");
+    if (!formData.phone) add("מספר טלפון", "phone");
+    if (!formData.schoolOrGarden) add("בית ספר/גן", "schoolOrGarden");
+    if (!formData.grade) add("כיתה", "grade");
+    if (!formData.homeLanguage) add("שפה מדוברת בבית", "homeLanguage");
 
     // --- שלב 2: סיבת הפנייה ---
-    if (!formData.difficultyDescription) missingFields.push("תיאור הקושי");
-    if (!formData.referralGoals) missingFields.push("מטרות הפנייה");
-    if (!formData.onsetTime) missingFields.push("מתי התחילו הקשיים");
-    if (!formData.hadAssessment) missingFields.push("האם עבר אבחון בעבר");
+    currentStep = 2;
+    if (!formData.difficultyDescription)
+      add("תיאור הקושי", "difficultyDescription");
+    if (!formData.referralGoals) add("מטרות הפנייה", "referralGoals");
+    if (!formData.onsetTime) add("מתי התחילו הקשיים", "onsetTime");
+    if (!formData.hadAssessment)
+      add("האם עבר אבחון בעבר", "hadAssessment");
     if (formData.hadAssessment === "כן") {
       const assessments = formData.assessments || [];
       if (assessments.length === 0) {
-        missingFields.push("פרטי האבחון שעבר");
+        add("פרטי האבחון שעבר", "assessments");
       } else {
         assessments.forEach((a, i) => {
-          if (!a.type) missingFields.push(`סוג האבחון ${i + 1} שעבר`);
-          if (!a.date) missingFields.push(`תאריך האבחון ${i + 1} שעבר`);
+          if (!a.type)
+            add(`סוג האבחון ${i + 1} שעבר`, `assessments.${i}.type`);
+          if (!a.date)
+            add(`תאריך האבחון ${i + 1} שעבר`, `assessments.${i}.date`);
           if (!a.recommendations)
-            missingFields.push(`המלצות האבחון ${i + 1}`);
+            add(
+              `המלצות האבחון ${i + 1}`,
+              `assessments.${i}.recommendations`,
+            );
         });
       }
     }
     if (!formData.paraMedicalTreatments)
-      missingFields.push("טיפולים פרא-רפואיים");
+      add("טיפולים פרא-רפואיים", "paraMedicalTreatments");
     if (!formData.expressedDistress)
-      missingFields.push("ביטוי מצוקה של הילד/ה");
-    if (!formData.willingToConsult) missingFields.push("נכונות להתייעץ");
+      add("ביטוי מצוקה של הילד/ה", "expressedDistress");
+    if (!formData.willingToConsult)
+      add("נכונות להתייעץ", "willingToConsult");
 
     // --- שלב 3: מהלך הלימודים ---
-    if (!formData.firstFrameworkAge) missingFields.push("גיל יציאה למסגרת");
-    if (!formData.firstFrameworkType) missingFields.push("סוג מסגרת ראשונה");
+    currentStep = 3;
+    if (!formData.firstFrameworkAge)
+      add("גיל יציאה למסגרת", "firstFrameworkAge");
+    if (!formData.firstFrameworkType)
+      add("סוג מסגרת ראשונה", "firstFrameworkType");
     if (!formData.prePreSchoolReports)
-      missingFields.push("דיווחים מגן טרום חובה");
-    if (!formData.preSchoolReports) missingFields.push("דיווחים מגן חובה");
+      add("דיווחים מגן טרום חובה", "prePreSchoolReports");
+    if (!formData.preSchoolReports)
+      add("דיווחים מגן חובה", "preSchoolReports");
 
     // --- שלב 4: הערכת תפקוד ---
+    currentStep = 4;
     const func = formData.functioning;
-    if (!func.studies) missingFields.push("הערכת תפקוד בלימודים");
-    if (!func.family) missingFields.push("הערכת תפקוד במשפחה");
-    if (!func.social) missingFields.push("הערכת תפקוד בחברה");
+    if (!func.studies) add("הערכת תפקוד בלימודים", "functioning.studies");
+    if (!func.family) add("הערכת תפקוד במשפחה", "functioning.family");
+    if (!func.social) add("הערכת תפקוד בחברה", "functioning.social");
 
     // --- שלב 5: פרטים על המשפחה ---
+    currentStep = 5;
     const fam = formData.familyStructure;
     // וולידציה לאם
-    if (!fam.motherNameInTable) missingFields.push("שם האם בטבלת משפחה");
-    if (!fam.motherAge) missingFields.push("גיל האם");
-    if (!fam.motherJob) missingFields.push("עיסוק האם");
+    if (!fam.motherNameInTable)
+      add("שם האם בטבלת משפחה", "familyStructure.motherNameInTable");
+    if (!fam.motherAge) add("גיל האם", "familyStructure.motherAge");
+    if (!fam.motherJob) add("עיסוק האם", "familyStructure.motherJob");
 
     // וולידציה לאב
-    if (!fam.fatherNameInTable) missingFields.push("שם האב בטבלת משפחה");
-    if (!fam.fatherAge) missingFields.push("גיל האב");
-    if (!fam.fatherJob) missingFields.push("עיסוק האב");
-
-    // בדיקה אופציונלית: אם יש אחים ברשימה, לוודא שלפחות לראשון יש שם
-    if (
-      fam.siblings.length > 0 &&
-      fam.siblings[0].name &&
-      !fam.siblings[0].age
-    ) {
-      missingFields.push("גיל האח/אחות הראשון/ה");
-    }
+    if (!fam.fatherNameInTable)
+      add("שם האב בטבלת משפחה", "familyStructure.fatherNameInTable");
+    if (!fam.fatherAge) add("גיל האב", "familyStructure.fatherAge");
+    if (!fam.fatherJob) add("עיסוק האב", "familyStructure.fatherJob");
 
     // --- שלב 6: בריאות ---
-    if (!formData.generalHealth) missingFields.push("מצב בריאות כללי");
-    if (!formData.pastDiseases) missingFields.push("מחלות עבר");
-    if (!formData.hospitalization) missingFields.push("אשפוזים");
-    if (!formData.regularMedications) missingFields.push("תרופות קבועות");
+    currentStep = 6;
+    if (!formData.generalHealth) add("מצב בריאות כללי", "generalHealth");
+    if (!formData.pastDiseases) add("מחלות עבר", "pastDiseases");
+    if (!formData.hospitalization) add("אשפוזים", "hospitalization");
+    if (!formData.regularMedications)
+      add("תרופות קבועות", "regularMedications");
 
     // --- שלב 7: רקע התפתחותי (שדות נסטד) ---
+    currentStep = 7;
     const dev = formData.development;
-    if (!dev.plannedPregnancy) missingFields.push("האם ההריון היה מתוכנן");
-    if (!dev.normalPregnancy) missingFields.push("האם ההריון היה תקין");
-    if (!dev.pregnancyDetails) missingFields.push("פרטי הריון");
-    if (!dev.normalBirth) missingFields.push("האם הלידה הייתה תקינה");
-    if (!dev.birthWeight) missingFields.push("משקל לידה");
-    if (!dev.birthDetails) missingFields.push("פרטי לידה");
+    if (!dev.plannedPregnancy)
+      add("האם ההריון היה מתוכנן", "development.plannedPregnancy");
+    if (!dev.normalPregnancy)
+      add("האם ההריון היה תקין", "development.normalPregnancy");
+    if (!dev.pregnancyDetails)
+      add("פרטי הריון", "development.pregnancyDetails");
+    if (!dev.normalBirth)
+      add("האם הלידה הייתה תקינה", "development.normalBirth");
+    if (!dev.birthWeight) add("משקל לידה", "development.birthWeight");
+    if (!dev.birthDetails) add("פרטי לידה", "development.birthDetails");
     if (!dev.problemsAfterBirthChild)
-      missingFields.push("בעיות רפואיות לילד/ה לאחר הלידה");
+      add(
+        "בעיות רפואיות לילד/ה לאחר הלידה",
+        "development.problemsAfterBirthChild",
+      );
     if (!dev.problemsAfterBirthMother)
-      missingFields.push("בעיות רפואיות לאם לאחר הלידה");
-    if (!dev.normalMotorDev) missingFields.push("התפתחות מוטורית תקינה");
-    if (!dev.walkingAge) missingFields.push("גיל הליכה");
-    if (!dev.normalLanguageDev) missingFields.push("התפתחות שפתית תקינה");
-    if (!dev.firstWordsAge) missingFields.push("גיל דיבור מילים ראשונות");
-    if (!dev.sleepIssuesFirstYear) missingFields.push("קשיי שינה שנה ראשונה");
-    if (!dev.eatingIssuesFirstYear) missingFields.push("קשיי אכילה שנה ראשונה");
-    if (!dev.diaperGraduationAge) missingFields.push("גיל גמילה מחיתולים");
+      add(
+        "בעיות רפואיות לאם לאחר הלידה",
+        "development.problemsAfterBirthMother",
+      );
+    if (!dev.normalMotorDev)
+      add("התפתחות מוטורית תקינה", "development.normalMotorDev");
+    if (!dev.walkingAge) add("גיל הליכה", "development.walkingAge");
+    if (!dev.normalLanguageDev)
+      add("התפתחות שפתית תקינה", "development.normalLanguageDev");
+    if (!dev.firstWordsAge)
+      add("גיל דיבור מילים ראשונות", "development.firstWordsAge");
+    if (!dev.sleepIssuesFirstYear)
+      add("קשיי שינה שנה ראשונה", "development.sleepIssuesFirstYear");
+    if (!dev.eatingIssuesFirstYear)
+      add("קשיי אכילה שנה ראשונה", "development.eatingIssuesFirstYear");
+    if (!dev.diaperGraduationAge)
+      add("גיל גמילה מחיתולים", "development.diaperGraduationAge");
 
     // --- שלב 8: הילד/ה היום ---
+    currentStep = 8;
     const curr = formData.currentProblems;
     if (!curr.foodSleepFearsDetails)
-      missingFields.push("פירוט בעיות סביב אוכל/שינה/פחדים");
-    if (!curr.restlessness) missingFields.push("חוסר מנוחה/פעילות יתר");
-    if (!curr.excitedEasily) missingFields.push("התרגשות בקלות");
-    if (!curr.disturbsOthers) missingFields.push("הפרעה לאחרים");
+      add(
+        "פירוט בעיות סביב אוכל/שינה/פחדים",
+        "currentProblems.foodSleepFearsDetails",
+      );
+    if (!curr.restlessness)
+      add("חוסר מנוחה/פעילות יתר", "currentProblems.restlessness");
+    if (!curr.excitedEasily)
+      add("התרגשות בקלות", "currentProblems.excitedEasily");
+    if (!curr.disturbsOthers)
+      add("הפרעה לאחרים", "currentProblems.disturbsOthers");
     if (!curr.difficultyCompletingTasks)
-      missingFields.push("קושי בהתמדה וסיום משימות");
+      add(
+        "קושי בהתמדה וסיום משימות",
+        "currentProblems.difficultyCompletingTasks",
+      );
     if (!curr.needsSpecialAttention)
-      missingFields.push("צורך בתשומת לב מיוחדת");
+      add("צורך בתשומת לב מיוחדת", "currentProblems.needsSpecialAttention");
     if (!curr.dependencyVsIndependence)
-      missingFields.push("תלותיות מול עצמאות");
-    if (!curr.closerToWho) missingFields.push("למי הילד/ה קרוב/ה יותר");
+      add(
+        "תלותיות מול עצמאות",
+        "currentProblems.dependencyVsIndependence",
+      );
+    if (!curr.closerToWho)
+      add("למי הילד/ה קרוב/ה יותר", "currentProblems.closerToWho");
 
     // --- שלב 9: תפקוד חברתי ---
+    currentStep = 9;
     const soc = formData.social;
-    if (!soc.hasFriends) missingFields.push("האם יש לילד/ה חברים");
-    if (!soc.socialLevel) missingFields.push("רמת חברתיות");
-    if (!soc.meaningfulConnections) missingFields.push("קשרים משמעותיים");
+    if (!soc.hasFriends) add("האם יש לילד/ה חברים", "social.hasFriends");
+    if (!soc.socialLevel) add("רמת חברתיות", "social.socialLevel");
+    if (!soc.meaningfulConnections)
+      add("קשרים משמעותיים", "social.meaningfulConnections");
     if (!soc.oppositeSexConnections)
-      missingFields.push("קשרים עם בני המין השני");
-    if (!soc.socialProblemsDetails) missingFields.push("פירוט בעיות חברתיות");
+      add("קשרים עם בני המין השני", "social.oppositeSexConnections");
+    if (!soc.socialProblemsDetails)
+      add("פירוט בעיות חברתיות", "social.socialProblemsDetails");
 
     // --- שלב 10: סדר יום וחתימה ---
-    if (!formData.parentsSignature) missingFields.push("חתימת ההורים");
-    if (!formData.signatureDate) missingFields.push("תאריך חתימה");
+    currentStep = 10;
+    if (!formData.parentsSignature)
+      add("חתימת ההורים", "parentsSignature");
+    if (!formData.signatureDate) add("תאריך חתימה", "signatureDate");
 
     return {
       isValid: missingFields.length === 0,
-      missingFields: missingFields,
+      missingFields,
+      missingByStep,
+      missingKeys,
     };
   };
+
+  const validation = useMemo(() => validateAllSteps(), [formData]);
+  const isMissing = (key) => showMissing && validation.missingKeys.has(key);
+  const currentStepMissingCount = validation.missingByStep.filter(
+    (m) => m.step === step,
+  ).length;
+  const missingStepsCount = new Set(
+    validation.missingByStep.map((m) => m.step),
+  ).size;
+
   return (
     <div
       ref={formTopRef}
@@ -1787,6 +2051,55 @@ const ParentQuestionnaire = ({
         </div>
       )}
 
+      {showMissing &&
+        (validation.missingKeys.size > 0 ? (
+          <div
+            className="bg-red-50 border border-red-300 rounded-xl p-4 mb-4"
+            role="alert"
+          >
+            <p className="font-bold text-red-700">
+              לא ניתן לשלוח עדיין: חסרים {validation.missingFields.length}{" "}
+              שדות חובה ב-{missingStepsCount} עמודים
+            </p>
+            <p className="text-xs text-red-600 mt-1 mb-3">
+              לחצו על עמוד אדום כדי לעבור אליו. השדות החסרים מסומנים בו
+              באדום.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {STEPS.map((stepLabel, idx) => {
+                const stepNum = idx + 1;
+                const countInStep = validation.missingByStep.filter(
+                  (m) => m.step === stepNum,
+                ).length;
+                const isComplete = countInStep === 0;
+                const isCurrent = stepNum === step;
+
+                return (
+                  <button
+                    key={stepNum}
+                    type="button"
+                    onClick={() => setStep(stepNum)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition ${
+                      isComplete
+                        ? "bg-green-100 border-green-300 text-green-700"
+                        : isCurrent
+                          ? "bg-red-600 border-red-600 text-white"
+                          : "border-red-400 text-red-700 hover:bg-red-100"
+                    }`}
+                  >
+                    {stepNum}. {stepLabel}
+                    {isComplete ? " ✓" : ` · ${countInStep}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-green-50 border border-green-300 rounded-xl p-3 mb-4 text-green-700 text-sm">
+            כל שדות החובה מולאו, אפשר לשלוח את השאלון.
+          </div>
+        ))}
+
       <div className="mb-6">
         <div className="flex justify-between text-xs text-gray-500 mb-1">
           <span className="font-semibold text-blue-700">{STEPS[step - 1]}</span>
@@ -1801,6 +2114,12 @@ const ParentQuestionnaire = ({
           />
         </div>
       </div>
+
+      {showMissing && currentStepMissingCount > 0 && (
+        <p className="text-sm text-red-700 mb-4">
+          בעמוד זה חסרים {currentStepMissingCount} שדות. הם מסומנים באדום.
+        </p>
+      )}
 
       {renderStep()}
 

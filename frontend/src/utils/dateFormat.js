@@ -40,8 +40,31 @@ export const toDate = (value) => {
       return isNaN(date.getTime()) ? null : date;
     }
 
-    const parsed = new Date(trimmed);
-    return isNaN(parsed.getTime()) ? null : parsed;
+    // "YYYY-MM-DDT..." - תאריך+שעה בפורמט ISO
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      const parsed = new Date(trimmed);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    // פורמט ישראלי יום-חודש-שנה (יום/חודש בני 1-2 ספרות, מפריד נקודה/לוכסן/מקף)
+    // - פירוק ידני כדי שלא יתפרש בטעות כ-MM/DD/YYYY האמריקאי
+    const dmyMatch = trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (dmyMatch) {
+      const [, dayStr, monthStr, yearStr] = dmyMatch;
+      const day = Number(dayStr);
+      const month = Number(monthStr);
+      const year = Number(yearStr);
+      if (month < 1 || month > 12) return null;
+
+      const date = new Date(year, month - 1, day);
+      const isSameDate =
+        date.getFullYear() === year &&
+        date.getMonth() === month - 1 &&
+        date.getDate() === day;
+      return isNaN(date.getTime()) || !isSameDate ? null : date;
+    }
+
+    return null;
   }
 
   return null;

@@ -26,8 +26,12 @@ const AiRephraseField = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState(null); // { text, provider, model }
+  const [editedText, setEditedText] = useState("");
+  const [suggestionSource, setSuggestionSource] = useState(null); // "rephrase" | "draft"
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState("");
+
+  const isEdited = Boolean(suggestion) && editedText !== suggestion.text;
 
   const text = value || "";
   const tooShort = text.trim().length < MIN_CHARS;
@@ -51,6 +55,8 @@ const AiRephraseField = ({
         token,
       );
       setSuggestion(result);
+      setEditedText(result.text);
+      setSuggestionSource("rephrase");
     } catch (err) {
       setError(err.message || "הניסוח נכשל. נסי שוב.");
     } finally {
@@ -70,6 +76,8 @@ const AiRephraseField = ({
         token,
       );
       setSuggestion(result);
+      setEditedText(result.text);
+      setSuggestionSource("draft");
     } catch (err) {
       setDraftError(err.message || "יצירת הטיוטה נכשלה. נסי שוב.");
     } finally {
@@ -78,7 +86,33 @@ const AiRephraseField = ({
   };
 
   const acceptSuggestion = () => {
-    onChange(suggestion.text);
+    if (!editedText.trim()) return;
+    onChange(editedText);
+    setSuggestion(null);
+  };
+
+  const handleRephraseAgain = () => {
+    if (
+      isEdited &&
+      !window.confirm("השינויים שעשית בניסוח יימחקו. להמשיך?")
+    ) {
+      return;
+    }
+    setSuggestion(null);
+    if (suggestionSource === "draft") {
+      requestDraftFromQuestionnaires();
+    } else {
+      requestRephrase();
+    }
+  };
+
+  const handleDiscardSuggestion = () => {
+    if (
+      isEdited &&
+      !window.confirm("השינויים שעשית בניסוח לא יישמרו. לסגור?")
+    ) {
+      return;
+    }
     setSuggestion(null);
   };
 
@@ -178,8 +212,8 @@ const AiRephraseField = ({
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-1">הצעת ניסוח</h3>
             <p className="text-gray-500 text-sm mb-4">
-              הטקסט נוצר אוטומטית. קראי אותו במלואו לפני ההחלפה - ודאי שלא נוספו
-              עובדות שלא כתבת.
+              הטקסט נוצר אוטומטית ואפשר לערוך אותו כאן לפני ההחלפה. קראי אותו
+              במלואו - ודאי שלא נוספו עובדות שלא כתבת.
             </p>
 
             <div className="grid md:grid-cols-2 gap-4 mb-5">
@@ -194,11 +228,23 @@ const AiRephraseField = ({
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                 <p className="text-blue-700 text-sm font-semibold mb-2">
-                  ניסוח מוצע
+                  ניסוח מוצע (אפשר לערוך)
                 </p>
-                <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                  {suggestion.text}
-                </p>
+                <textarea
+                  value={editedText}
+                  onChange={(e) => setEditedText(e.target.value)}
+                  dir="rtl"
+                  className="w-full min-h-[240px] resize-y border border-blue-200 rounded-xl bg-white p-3 text-gray-800 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                {isEdited && (
+                  <button
+                    type="button"
+                    onClick={() => setEditedText(suggestion.text)}
+                    className="mt-2 text-sm text-blue-600 hover:underline"
+                  >
+                    חזרה להצעה המקורית
+                  </button>
+                )}
               </div>
             </div>
 
@@ -212,17 +258,14 @@ const AiRephraseField = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setSuggestion(null);
-                  requestRephrase();
-                }}
+                onClick={handleRephraseAgain}
                 className="px-5 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
               >
                 נסח שוב
               </button>
               <button
                 type="button"
-                onClick={() => setSuggestion(null)}
+                onClick={handleDiscardSuggestion}
                 className="px-5 py-2 rounded-xl text-gray-500 hover:bg-gray-50 transition"
               >
                 השאר כמו שהוא
@@ -232,6 +275,10 @@ const AiRephraseField = ({
                 {suggestion.model}
               </span>
             </div>
+
+            {!editedText.trim() && (
+              <p className="text-sm text-red-600 mt-2">הטקסט המוצע ריק</p>
+            )}
           </div>
         </div>
       )}

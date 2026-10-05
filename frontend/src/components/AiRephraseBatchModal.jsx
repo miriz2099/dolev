@@ -40,6 +40,7 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
                     : {
                         status: "done",
                         text: event.text,
+                        originalText: event.text,
                         provider: event.provider,
                         model: event.model,
                         accepted: true,
@@ -83,6 +84,7 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
         [sectionId]: {
           status: "done",
           text: result.text,
+          originalText: result.text,
           provider: result.provider,
           model: result.model,
           accepted: true,
@@ -109,7 +111,24 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
     }));
   };
 
+  const editBlockText = (sectionId, value) => {
+    setResults((prev) => ({
+      ...prev,
+      [sectionId]: { ...prev[sectionId], text: value },
+    }));
+  };
+
   const handleCancel = () => {
+    const hasUnsavedEdits = blocks.some((b) => {
+      const r = results[b.sectionId];
+      return r?.status === "done" && r.text !== r.originalText;
+    });
+    if (
+      hasUnsavedEdits &&
+      !window.confirm("השינויים שעשית בהצעות לא יישמרו. לסגור?")
+    ) {
+      return;
+    }
     abortRef.current?.abort();
     onClose();
   };
@@ -118,7 +137,9 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
     const acceptedMap = {};
     blocks.forEach((b) => {
       const r = results[b.sectionId];
-      if (r?.status === "done" && r.accepted) acceptedMap[b.sectionId] = r.text;
+      if (r?.status === "done" && r.accepted && r.text?.trim()) {
+        acceptedMap[b.sectionId] = r.text;
+      }
     });
     onConfirm(acceptedMap);
   };
@@ -128,9 +149,10 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
     (b) => results[b.sectionId]?.status && results[b.sectionId].status !== "pending",
   ).length;
   const allResolved = doneCount === total && retryingIds.size === 0;
-  const acceptedCount = blocks.filter(
-    (b) => results[b.sectionId]?.status === "done" && results[b.sectionId]?.accepted,
-  ).length;
+  const acceptedCount = blocks.filter((b) => {
+    const r = results[b.sectionId];
+    return r?.status === "done" && r.accepted && r.text?.trim();
+  }).length;
   const progressPct = total ? Math.round((doneCount / total) * 100) : 0;
 
   return (
@@ -139,8 +161,8 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
         <div className="p-6 pb-4 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800 mb-1">ניסוח מחדש קבוצתי</h3>
           <p className="text-gray-500 text-sm mb-4">
-            כל בלוק נשלח לניסוח בנפרד. קראי כל הצעה במלואה לפני האישור - ודאי
-            שלא נוספו עובדות שלא כתבת.
+            כל בלוק נשלח לניסוח בנפרד, ואפשר לערוך כל הצעה לפני האישור. קראי
+            כל הצעה במלואה - ודאי שלא נוספו עובדות שלא כתבת.
           </p>
 
           <div className="flex items-center gap-3">
@@ -200,10 +222,36 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
                         </p>
                       </div>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                        <p className="text-blue-700 text-xs font-semibold mb-1">ניסוח מוצע</p>
-                        <p className="text-gray-800 text-sm whitespace-pre-wrap leading-relaxed">
-                          {result.text}
+                        <p className="text-blue-700 text-xs font-semibold mb-1">
+                          ניסוח מוצע (אפשר לערוך)
                         </p>
+                        <textarea
+                          value={result.text}
+                          onChange={(e) =>
+                            editBlockText(block.sectionId, e.target.value)
+                          }
+                          dir="rtl"
+                          className="w-full min-h-[140px] resize-y border border-blue-200 rounded-xl bg-white p-2 text-sm text-gray-800 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400"
+                        />
+                        {result.text !== result.originalText && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              editBlockText(
+                                block.sectionId,
+                                result.originalText,
+                              )
+                            }
+                            className="mt-1 text-sm text-blue-600 hover:underline"
+                          >
+                            חזרה להצעה המקורית
+                          </button>
+                        )}
+                        {!result.text?.trim() && (
+                          <p className="text-xs text-red-600 mt-1">
+                            הטקסט ריק ולא ייכלל בעדכון
+                          </p>
+                        )}
                       </div>
                     </div>
                     <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 cursor-pointer w-fit">
