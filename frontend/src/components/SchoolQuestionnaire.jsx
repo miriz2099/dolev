@@ -1144,8 +1144,6 @@ const SchoolQuestionnaire = ({
     requestedIntervention: "",
     signatureDate: "",
     teacherSignatureName: "",
-    teacherSignature: "",
-    principalSignature: "",
   });
 
   useEffect(() => {
@@ -1711,7 +1709,7 @@ const SchoolQuestionnaire = ({
               onChange={(v) => handleChange("requestedIntervention", v)}
               rows={3}
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-6 border-t mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pt-6 border-t mt-6">
               <InputField
                 label={SQ_LABELS.signatureDate.label}
                 type="date"
@@ -1722,16 +1720,6 @@ const SchoolQuestionnaire = ({
                 label={SQ_LABELS.teacherSignatureName.label}
                 value={formData.teacherSignatureName}
                 onChange={(v) => handleChange("teacherSignatureName", v)}
-              />
-              <InputField
-                label={SQ_LABELS.teacherSignature.label}
-                value={formData.teacherSignature}
-                onChange={(v) => handleChange("teacherSignature", v)}
-              />
-              <InputField
-                label={SQ_LABELS.principalSignature.label}
-                value={formData.principalSignature}
-                onChange={(v) => handleChange("principalSignature", v)}
               />
             </div>
           </div>

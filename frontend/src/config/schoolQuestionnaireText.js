@@ -79,8 +79,6 @@ export const SQ_LABELS = {
   requestedIntervention: { label: "ההתערבות הטיפולית המבוקשת" },
   signatureDate: { label: "תאריך" },
   teacherSignatureName: { label: "שם המחנך/ת" },
-  teacherSignature: { label: "חתימה" },
-  principalSignature: { label: "חתימת מנהל/ת" },
 };
 
 export const SQ_OPTIONS = {

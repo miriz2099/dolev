@@ -2432,29 +2432,18 @@ const SchoolSurveyView = ({ data }) => {
       </RenderSection>
 
       {/* חתימות מורחב */}
-      <div className="mt-12 pt-8 border-t-2 border-blue-50 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="mt-12 pt-8 border-t-2 border-blue-50 grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="flex flex-col items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
           <p className="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">
-            חתימת מחנך/ת
+            שם המחנך/ת
           </p>
           <p className="text-lg text-gray-800 font-serif italic">
-            {formData.teacherSignature || teacherName}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            {formData.teacherSignatureName}
+            {formData.teacherSignatureName || teacherName}
           </p>
         </div>
         <div className="flex flex-col items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
           <p className="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">
-            חתימת הנהלה
-          </p>
-          <p className="text-lg text-gray-800 font-bold">
-            {formData.principalSignature || "—"}
-          </p>
-        </div>
-        <div className="flex flex-col items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-          <p className="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">
-            תאריך חתימה
+            תאריך
           </p>
           <p className="text-lg text-gray-800 font-mono font-bold">
             {formatDate(formData.signatureDate) || formData.date}

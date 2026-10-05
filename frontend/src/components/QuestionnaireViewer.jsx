@@ -1083,9 +1083,15 @@ const QuestionnaireViewer = ({ data }) => {
           value={formData.generalHealth}
           wide
         />
-        <AnswerBox label="בדיקת ראייה - תאריך" value={formData.visionDate} />
+        <AnswerBox
+          label="בדיקת ראייה - תאריך"
+          value={formatDate(formData.visionDate)}
+        />
         <AnswerBox label="ממצא בדיקת ראייה" value={formData.visionFindings} />
-        <AnswerBox label="בדיקת שמיעה - תאריך" value={formData.hearingDate} />
+        <AnswerBox
+          label="בדיקת שמיעה - תאריך"
+          value={formatDate(formData.hearingDate)}
+        />
         <AnswerBox label="ממצא בדיקת שמיעה" value={formData.hearingFindings} />
         <AnswerBox
           label="מחלות בעבר/הווה"

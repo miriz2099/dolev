@@ -1261,9 +1261,11 @@ const ParentQuestionnaire = ({
             />
             <div className="grid grid-cols-2 gap-4">
               <InputField
-                label="בדיקת ראייה - תאריך *"
+                label="בדיקת ראייה - תאריך"
+                type="date"
                 value={formData.visionDate}
                 onChange={(v) => handleChange("visionDate", v)}
+                maxDate={new Date()}
               />
               <InputField
                 label="ממצאים"
@@ -1271,9 +1273,11 @@ const ParentQuestionnaire = ({
                 onChange={(v) => handleChange("visionFindings", v)}
               />
               <InputField
-                label="בדיקת שמיעה - תאריך *"
+                label="בדיקת שמיעה - תאריך"
+                type="date"
                 value={formData.hearingDate}
                 onChange={(v) => handleChange("hearingDate", v)}
+                maxDate={new Date()}
               />
               <InputField
                 label="ממצאים"
@@ -1695,8 +1699,6 @@ const ParentQuestionnaire = ({
 
     // --- שלב 6: בריאות ---
     if (!formData.generalHealth) missingFields.push("מצב בריאות כללי");
-    if (!formData.visionDate) missingFields.push("תאריך בדיקת ראייה");
-    if (!formData.hearingDate) missingFields.push("תאריך בדיקת שמיעה");
     if (!formData.pastDiseases) missingFields.push("מחלות עבר");
     if (!formData.hospitalization) missingFields.push("אשפוזים");
     if (!formData.regularMedications) missingFields.push("תרופות קבועות");

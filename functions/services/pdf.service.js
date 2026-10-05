@@ -3044,9 +3044,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
 
   html += `<h2>חתימות</h2><table class="info-table">`;
   html += infoRow("שם המחנך/ת", f.teacherSignatureName);
-  html += infoRow("חתימה", f.teacherSignature || doc.teacherName);
-  html += infoRow("חתימת מנהל/ת", f.principalSignature);
-  html += infoRow("תאריך חתימה", f.signatureDate || f.date);
+  html += infoRow("תאריך", f.signatureDate || f.date);
   html += `</table>`;
 
   return wrapHtmlDocument(
