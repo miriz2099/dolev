@@ -1141,6 +1141,7 @@ import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
 import therapistService from "../services/therapist.service";
 import childService from "../services/child.service";
+import messageService from "../services/message.service";
 import GenericMessageModal from "../components/GenericMessageModal";
 import DiagnosisList from "../components/DiagnosisList";
 import DiagnosisView from "../components/DiagnosisView";
@@ -1336,11 +1337,11 @@ const DiagnosisDetails = () => {
         childId,
         text: messageText,
       };
-      await therapistService.sendMessage(payload, token);
+      await messageService.sendMessage(payload, token);
       alert("ההודעה נשלחה בהצלחה!");
       setIsModalOpen(false);
     } catch (err) {
-      alert("נכשלה שליחת ההודעה");
+      alert(`נכשלה שליחת ההודעה: ${err.message}`);
     }
   };
 

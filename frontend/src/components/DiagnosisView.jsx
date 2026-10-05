@@ -533,6 +533,7 @@
 
 import React, { useState, useEffect } from "react";
 import therapistService from "../services/therapist.service";
+import messageService from "../services/message.service";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service"; // ייבוא הסרביס החדש
 import QuestionnaireViewer from "./QuestionnaireViewer";
 import SchoolSurveyTab from "./SchoolSurveyTab"; // הקומפוננטה שבנינו לתצוגת שאלון בית ספר
@@ -627,33 +628,42 @@ const DiagnosisView = ({
   };
 
   const handleConfirmCorrection = async (messageText) => {
-    try {
-      const token = await currentUser.getIdToken();
-      const finalMessage = messageText.trim()
-        ? messageText
-        : `שלום, השאלון הוחזר אליכם לתיקון או הוספת פרטים. נא להיכנס ללשונית "אישורים וטפסים" ולעדכן. תודה!`;
+    const finalMessage = messageText.trim()
+      ? messageText
+      : `שלום, השאלון הוחזר אליכם לתיקון או הוספת פרטים. נא להיכנס ללשונית "אישורים וטפסים" ולעדכן. תודה!`;
 
+    let token;
+    try {
+      token = await currentUser.getIdToken();
       await therapistService.updateQuestionnaireStatus(
         diagnosis.id,
         "לתיקון",
         token,
         diagnosis.childId,
       );
-
-      const messagePayload = {
-        receiverId: diagnosis.parentId || parentAnswers?.parentId,
-        childId: diagnosis.childId,
-        text: finalMessage,
-      };
-      await therapistService.sendMessage(messagePayload, token);
-
-      alert("השאלון הוחזר לתיקון והודעה נשלחה להורים.");
-      setCurrentStatus("לתיקון");
-      setIsCorrectionModalOpen(false);
     } catch (err) {
       console.error(err);
       alert("שגיאה בתהליך ההחזרה לתיקון.");
+      return;
     }
+
+    try {
+      const messagePayload = {
+        receiverId: childData?.parentId || parentAnswers?.parentId,
+        childId: diagnosis.childId,
+        text: finalMessage,
+      };
+      await messageService.sendMessage(messagePayload, token);
+      alert("השאלון הוחזר לתיקון והודעה נשלחה להורים.");
+    } catch (err) {
+      console.error(err);
+      alert(
+        `השאלון הוחזר לתיקון, אך שליחת ההודעה להורים נכשלה: ${err.message}. אפשר לשלוח להם הודעה ידנית.`,
+      );
+    }
+
+    setCurrentStatus("לתיקון");
+    setIsCorrectionModalOpen(false);
   };
 
   const handleDeleteDiagnosis = async () => {
