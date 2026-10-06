@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import consentFormService from "../services/consentForm.service";
 import { formatDate } from "../utils/dateFormat";
+import SignatureInput from "./SignatureInput";
 
 /**
  * מודאל לחתימה על טופס הסכמה לאבחון פסיכולוגי
@@ -41,7 +42,7 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
 
     if (!name.trim()) return setError("יש להזין שם מלא");
     if (!email.trim()) return setError("יש להזין כתובת מייל");
-    if (!signature.trim()) return setError("יש להקליד חתימה");
+    if (!signature) return setError("יש לחתום או להעלות תמונה של החתימה");
     if (!agreed) return setError("יש לאשר את ההסכמה לפני החתימה");
 
     try {
@@ -52,7 +53,7 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
         {
           name: name.trim(),
           email: email.trim(),
-          signature: signature.trim(),
+          signature,
           schoolOrGarden: schoolOrGarden.trim(),
         },
         token,
@@ -205,20 +206,9 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">
-                  חתימה *{" "}
-                  <span className="text-gray-400 font-normal text-xs">
-                    (הקלידי את שמך המלא כחתימה)
-                  </span>
+                  חתימה *
                 </label>
-                <input
-                  type="text"
-                  value={signature}
-                  onChange={(e) => setSignature(e.target.value)}
-                  placeholder="הקלידי כאן את שמך המלא"
-                  className="w-full border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold italic"
-                  style={{ fontFamily: "cursive" }}
-                  disabled={submitting}
-                />
+                <SignatureInput value={signature} onChange={setSignature} />
               </div>
             </div>
 

@@ -29,6 +29,7 @@ const {
   aiLimiter,
   aiBatchLimiter,
   aiPlausibilityLimiter,
+  aiRefineLimiter,
 } = require("../middleware/rateLimiter.middleware");
 const {
   getReportByDiagnosis,
@@ -42,6 +43,7 @@ const {
   generateSectionFromQuestionnaires,
   generateReportSectionsBatch,
   checkReportPlausibility,
+  refineReportSection,
 } = require("../controllers/report.controller");
 
 router.get("/diagnosis/:diagnosisId", verifyToken, getReportByDiagnosis);
@@ -67,6 +69,7 @@ router.post(
   aiPlausibilityLimiter,
   checkReportPlausibility,
 );
+router.post("/ai/refine", verifyToken, aiRefineLimiter, refineReportSection);
 router.get("/:reportId", verifyToken, getReportById);
 router.put("/:reportId/unlock", verifyToken, openReportForEditing);
 router.get("/:reportId/export", verifyToken, exportReportToPDF);

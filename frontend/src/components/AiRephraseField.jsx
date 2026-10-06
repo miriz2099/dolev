@@ -4,7 +4,7 @@
 // המאבחנת כותבת בצורה אסוציאטיבית, לוחצת, ומקבלת הצעת ניסוח קליני
 // במסך השוואה. הטקסט מוחלף רק אם היא מאשרת במפורש.
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import reportService from "../services/report.service";
 
@@ -31,7 +31,21 @@ const AiRephraseField = ({
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState("");
 
+  // שיחה על הניסוח - לא נשמרת בשום מקום, רק מועברת כקלט לכל קריאת refine
+  const [sourceText, setSourceText] = useState("");
+  const [chatMessages, setChatMessages] = useState([]); // [{ role: "user"|"assistant", text }]
+  const [chatInput, setChatInput] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const chatScrollRef = useRef(null);
+
   const isEdited = Boolean(suggestion) && editedText !== suggestion.text;
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, refining]);
 
   const text = value || "";
   const tooShort = text.trim().length < MIN_CHARS;
@@ -57,6 +71,10 @@ const AiRephraseField = ({
       setSuggestion(result);
       setEditedText(result.text);
       setSuggestionSource("rephrase");
+      setSourceText(text);
+      setChatMessages([]);
+      setChatInput("");
+      setChatError("");
     } catch (err) {
       setError(err.message || "הניסוח נכשל. נסי שוב.");
     } finally {
@@ -78,6 +96,10 @@ const AiRephraseField = ({
       setSuggestion(result);
       setEditedText(result.text);
       setSuggestionSource("draft");
+      setSourceText("");
+      setChatMessages([]);
+      setChatInput("");
+      setChatError("");
     } catch (err) {
       setDraftError(err.message || "יצירת הטיוטה נכשלה. נסי שוב.");
     } finally {
@@ -91,10 +113,12 @@ const AiRephraseField = ({
     setSuggestion(null);
   };
 
+  const hasUnsavedWork = isEdited || chatMessages.length > 0;
+
   const handleRephraseAgain = () => {
     if (
-      isEdited &&
-      !window.confirm("השינויים שעשית בניסוח יימחקו. להמשיך?")
+      hasUnsavedWork &&
+      !window.confirm("הנוסח והשיחה לא יישמרו. להמשיך?")
     ) {
       return;
     }
@@ -108,12 +132,52 @@ const AiRephraseField = ({
 
   const handleDiscardSuggestion = () => {
     if (
-      isEdited &&
-      !window.confirm("השינויים שעשית בניסוח לא יישמרו. לסגור?")
+      hasUnsavedWork &&
+      !window.confirm("הנוסח והשיחה לא יישמרו. להמשיך?")
     ) {
       return;
     }
     setSuggestion(null);
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || refining) return;
+
+    const message = chatInput.trim();
+    const historyForRequest = chatMessages.slice(-10);
+
+    setChatMessages((prev) => [...prev, { role: "user", text: message }]);
+    setChatInput("");
+    setChatError("");
+    setRefining(true);
+
+    try {
+      const token = await currentUser.getIdToken();
+      const result = await reportService.refine(
+        diagnosisId,
+        {
+          sectionId,
+          mode: suggestionSource,
+          sourceText,
+          currentText: editedText,
+          history: historyForRequest,
+          message,
+        },
+        token,
+      );
+      setEditedText(result.text);
+      setSuggestion((prev) => ({ ...prev, text: result.text }));
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: result.note || "הנוסח עודכן." },
+      ]);
+    } catch (err) {
+      setChatMessages((prev) => prev.slice(0, -1));
+      setChatInput(message);
+      setChatError(err.message || "עדכון הניסוח נכשל. נסי שוב.");
+    } finally {
+      setRefining(false);
+    }
   };
 
   return (
@@ -233,8 +297,9 @@ const AiRephraseField = ({
                 <textarea
                   value={editedText}
                   onChange={(e) => setEditedText(e.target.value)}
+                  disabled={refining}
                   dir="rtl"
-                  className="w-full min-h-[240px] resize-y border border-blue-200 rounded-xl bg-white p-3 text-gray-800 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full min-h-[240px] resize-y border border-blue-200 rounded-xl bg-white p-3 text-gray-800 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50"
                 />
                 {isEdited && (
                   <button
@@ -242,24 +307,101 @@ const AiRephraseField = ({
                     onClick={() => setEditedText(suggestion.text)}
                     className="mt-2 text-sm text-blue-600 hover:underline"
                   >
-                    חזרה להצעה המקורית
+                    ביטול העריכה הידנית
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* שיחה על הניסוח */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 mb-5">
+              <p className="text-gray-700 text-sm font-semibold mb-3">
+                שיחה על הניסוח
+              </p>
+
+              <div
+                ref={chatScrollRef}
+                className="max-h-[220px] overflow-y-auto flex flex-col gap-2 mb-3 pr-1"
+              >
+                {chatMessages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                        m.role === "user"
+                          ? "bg-gray-200 text-gray-800"
+                          : "bg-blue-100 text-blue-900"
+                      }`}
+                    >
+                      {m.text}
+                    </div>
+                  </div>
+                ))}
+                {refining && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[80%] rounded-xl px-3 py-2 text-sm bg-blue-100 text-blue-900 flex items-center gap-1.5">
+                      <span>מעדכנת את הנוסח...</span>
+                      <span className="inline-flex gap-0.5">
+                        <span className="w-1.5 h-1.5 bg-blue-900 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1.5 h-1.5 bg-blue-900 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1.5 h-1.5 bg-blue-900 rounded-full animate-bounce" />
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                  maxLength={1000}
+                  rows={2}
+                  disabled={refining}
+                  placeholder="כתבי מה לשנות או מה לא ברור בניסוח"
+                  className="flex-1 border border-gray-300 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-400 resize-none disabled:bg-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={sendChatMessage}
+                  disabled={refining || !chatInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  שליחה
+                </button>
+              </div>
+
+              {chatError && (
+                <p className="text-sm text-red-600 mt-2">{chatError}</p>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
+                הבינה מתקנת לפי מה שכתבת ולא מוסיפה עובדות שלא הופיעו בטקסט
+                או בהודעות שלך.
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={acceptSuggestion}
-                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+                disabled={refining}
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 החלף את הטקסט
               </button>
               <button
                 type="button"
                 onClick={handleRephraseAgain}
-                className="px-5 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+                disabled={refining}
+                className="px-5 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 נסח שוב
               </button>

@@ -18,6 +18,25 @@ module.exports = {
     // מדמה latency אמיתי כדי שה-loading state ייבדק כמו שצריך
     await delay(600);
 
+    // שיחה על הניסוח (refineSection): מחלץ את CURRENT ומחזיר JSON דמה
+    if (userText.includes("<<<CURRENT_START>>>")) {
+      const currentMatch = userText.match(
+        /<<<CURRENT_START>>>\n([\s\S]*?)\n<<<CURRENT_END>>>/,
+      );
+      const current = (currentMatch ? currentMatch[1] : "").trim();
+
+      const text = JSON.stringify({
+        text: "[MOCK] " + current,
+        note: "[MOCK] לא בוצע שינוי אמיתי.",
+      });
+
+      return {
+        text,
+        model: "mock-v1",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      };
+    }
+
     // מחלץ את התוכן מתוך המפרידים שהוגדרו ב-prompts.js
     const match = userText.match(
       /<<<NOTES_START>>>\n([\s\S]*)\n<<<NOTES_END>>>/,

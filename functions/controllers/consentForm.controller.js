@@ -2,6 +2,7 @@ const { db } = require("../config/firebase");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const pdfService = require("../services/pdf.service");
+const { isValidSignatureImage } = require("../helpers/signature.helper");
 
 // ============================================
 // Helper: יצירת nodemailer transporter
@@ -130,8 +131,10 @@ const signByRegisteredParent = async (req, res) => {
     if (!email || !email.trim()) {
       return res.status(400).json({ error: "יש להזין כתובת מייל" });
     }
-    if (!signature || !signature.trim()) {
-      return res.status(400).json({ error: "יש להזין חתימה" });
+    if (!isValidSignatureImage(signature)) {
+      return res.status(400).json({
+        error: "החתימה אינה תקינה. יש לחתום או להעלות תמונה של החתימה.",
+      });
     }
 
     // שליפת הטופס
@@ -169,7 +172,7 @@ const signByRegisteredParent = async (req, res) => {
       ...updatedParents[registeredIdx],
       name: name.trim(),
       email: email.trim(),
-      signature: signature.trim(),
+      signature,
       signed: true,
       signedAt: new Date().toISOString(),
     };
@@ -465,8 +468,10 @@ const signByExternalParent = async (req, res) => {
     const { token } = req.params;
     const { signature, agreed } = req.body;
 
-    if (!signature || !signature.trim()) {
-      return res.status(400).json({ error: "יש להזין חתימה" });
+    if (!isValidSignatureImage(signature)) {
+      return res.status(400).json({
+        error: "החתימה אינה תקינה. יש לחתום או להעלות תמונה של החתימה.",
+      });
     }
     if (!agreed) {
       return res.status(400).json({ error: "יש לאשר את ההסכמה" });
@@ -511,7 +516,7 @@ const signByExternalParent = async (req, res) => {
       ...updatedParents[externalIdx],
       signed: true,
       signedAt: new Date().toISOString(),
-      signature: signature.trim(),
+      signature,
     };
 
     // קביעת סטטוס חדש - כעת שני ההורים חתמו

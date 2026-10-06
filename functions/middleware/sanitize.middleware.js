@@ -1,7 +1,12 @@
 // functions/middleware/sanitize.middleware.js
 
+const { SIGNATURE_IMAGE_RE } = require("../helpers/signature.helper");
+
 const stripTags = (str) => {
   if (typeof str !== "string") return str;
+  // חתימה כתמונה (base64) - ייתכן שתכיל רצף שנראה כמו "on...=" בסופה; ניקוי
+  // היה משבש את התמונה, ולכן מחרוזת כזו מוחזרת כמו שהיא.
+  if (SIGNATURE_IMAGE_RE.test(str)) return str;
   return str
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

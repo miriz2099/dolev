@@ -1550,7 +1550,8 @@ const FullChatWindow = ({ childId, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
+  const canMarkUrgent = userRole === "patient";
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -1604,7 +1605,7 @@ const FullChatWindow = ({ childId, onBack }) => {
     if (!inputText.trim()) return;
 
     const textToSend = inputText;
-    const urgentToSend = isUrgent;
+    const urgentToSend = canMarkUrgent && isUrgent;
     setInputText("");
     setIsUrgent(false);
 
@@ -1726,19 +1727,21 @@ const FullChatWindow = ({ childId, onBack }) => {
 
       {/* Input Area */}
       <div className="p-4 bg-gray-50 border-t shrink-0">
-        <label className="flex items-center gap-2 mb-2 cursor-pointer select-none w-fit">
-          <input
-            type="checkbox"
-            checked={isUrgent}
-            onChange={(e) => setIsUrgent(e.target.checked)}
-            className="w-4 h-4 accent-red-600"
-          />
-          <span
-            className={`text-xs font-bold ${isUrgent ? "text-red-600" : "text-gray-500"}`}
-          >
-            🚨 דחוף - שלחו גם התראה למייל המאבחן/ת
-          </span>
-        </label>
+        {canMarkUrgent && (
+          <label className="flex items-center gap-2 mb-2 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={isUrgent}
+              onChange={(e) => setIsUrgent(e.target.checked)}
+              className="w-4 h-4 accent-red-600"
+            />
+            <span
+              className={`text-xs font-bold ${isUrgent ? "text-red-600" : "text-gray-500"}`}
+            >
+              🚨 דחוף - שלחו גם התראה למייל המאבחן/ת
+            </span>
+          </label>
+        )}
         <form onSubmit={handleSend} className="flex gap-2">
           <input
             value={inputText}

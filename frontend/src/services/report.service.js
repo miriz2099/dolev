@@ -168,6 +168,15 @@ const reportService = {
       body: JSON.stringify({ diagnosisId, sectionId }),
     }),
 
+  // 🆕 "שיחה על הניסוח" - עריכת הנוסח המוצע הנוכחי לפי הודעה חופשית של
+  // המאבחנת. מחזיר { text, note, provider, model } - הטקסט המוצע מוחלף
+  // בתיבת הניסוח, השמירה בדוח עדיין מתבצעת רק ב"החלף את הטקסט".
+  refine: (diagnosisId, payload, token) =>
+    fetchWithAuth(`${BASE_URL}/reports/ai/refine`, token, {
+      method: "POST",
+      body: JSON.stringify({ diagnosisId, ...payload }),
+    }),
+
   // 🆕 ניסוח מחדש קבוצתי - שולח כמה מקטעים בבקשה אחת, אבל כל מקטע
   // מנוסח בנפרד מאחורי הקלעים (ראה functions/controllers/report.controller.js).
   // התשובה מגיעה כ-NDJSON (שורת JSON אחת לכל מקטע שמסתיים) כדי לאפשר

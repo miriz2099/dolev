@@ -2264,6 +2264,7 @@
 
 // functions/services/pdf.service.js
 const htmlPdf = require("html-pdf-node");
+const { isValidSignatureImage } = require("../helpers/signature.helper");
 
 // אחידות תאריכים בפורמט ישראלי (יום.חודש.שנה) בכל ה-PDF - תצוגה בלבד,
 // לא משנה את פורמט הנתונים השמורים
@@ -3119,7 +3120,10 @@ const renderConsentParentLine = (parent, label) => {
   html += `<div class="consent-parent-label">${label}</div>`;
   html += `<div class="consent-parent-line">שם: <span class="value">${parent.name || ""}</span></div>`;
   if (parent.signed) {
-    html += `<div class="consent-parent-line">חתימה: <span class="value">${parent.signature || ""}</span></div>`;
+    const signatureHtml = isValidSignatureImage(parent.signature)
+      ? `<img src="${parent.signature}" alt="חתימה" style="max-height:60px;max-width:220px;vertical-align:middle">`
+      : parent.signature || "";
+    html += `<div class="consent-parent-line">חתימה: <span class="value">${signatureHtml}</span></div>`;
     html += `<div class="consent-parent-line">נחתם בתאריך: <span class="value">${formatConsentDate(parent.signedAt)}</span></div>`;
   } else {
     const invited =

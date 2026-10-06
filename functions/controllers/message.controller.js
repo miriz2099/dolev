@@ -350,7 +350,7 @@ const sendMessage = async (req, res) => {
       return res.status(403).json({ error: "הנמען אינו קשור לילד זה" });
     }
 
-    const isUrgent = urgent === true;
+    const isUrgent = urgent === true && childData.parentId === senderId;
 
     const messageData = {
       senderId,

@@ -131,12 +131,22 @@ const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
               </div>
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <span className="text-gray-500 text-xs block mb-2">חתימה:</span>
-                <div
-                  className="bg-white border border-gray-200 rounded-xl p-4 text-2xl font-bold italic text-gray-800"
-                  style={{ fontFamily: "cursive" }}
-                >
-                  {parent.signature}
-                </div>
+                {parent.signature?.startsWith("data:image/") ? (
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <img
+                      src={parent.signature}
+                      alt="חתימה"
+                      className="max-h-24 max-w-full"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="bg-white border border-gray-200 rounded-xl p-4 text-2xl font-bold italic text-gray-800"
+                    style={{ fontFamily: "cursive" }}
+                  >
+                    {parent.signature}
+                  </div>
+                )}
               </div>
             </>
           ) : (

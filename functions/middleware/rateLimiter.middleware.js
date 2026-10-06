@@ -113,6 +113,17 @@ const aiPlausibilityLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// הגבלה ל"שיחה על הניסוח" (refine) - כל הודעת צ'אט היא קריאת LLM נפרדת,
+// ולכן bucket נפרד ועם max גבוה יותר מ-aiLimiter (שמגביל ניסוח/טיוטה בודדים).
+const aiRefineLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 דקות
+  max: 30,
+  keyGenerator: (req) => req.user?.uid || ipKeyGenerator(req.ip),
+  message: { error: "יותר מדי בקשות לדיוק ניסוח. המתיני כמה דקות ונסי שוב." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 module.exports = {
   generalLimiter,
   publicRouteLimiter,
@@ -120,4 +131,5 @@ module.exports = {
   aiLimiter,
   aiBatchLimiter,
   aiPlausibilityLimiter,
+  aiRefineLimiter,
 };

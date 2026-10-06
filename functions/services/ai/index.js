@@ -348,8 +348,225 @@ const checkSectionPlausibility = async ({
   throw lastError;
 };
 
+/**
+ * מפענחת את תשובת ה-JSON של "שיחה על הניסוח" (refineSection). עמידה בפני
+ * עטיפת markdown (```json ... ```) כמו parsePlausibilityResponse, אבל
+ * בניגוד אליה - לא fail-open: תשובה שלא ניתנת לפענוח היא שגיאה (אסור
+ * להחזיר טקסט לא תקין לתוך תיבת הניסוח המוצע).
+ * @param {string} text
+ * @returns {{text: string, note: string}}
+ */
+const parseRefineResponse = (text) => {
+  try {
+    const cleaned = text
+      .trim()
+      .replace(/^```(?:json)?/i, "")
+      .replace(/```$/, "")
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed.text === "string" && parsed.text.trim()) {
+      return {
+        text: parsed.text,
+        note: typeof parsed.note === "string" ? parsed.note : "",
+      };
+    }
+  } catch (err) {
+    // נופל לזריקה למטה
+  }
+
+  throw new AiError("הבינה המלאכותית החזירה תשובה לא תקינה. נסי שוב.", {
+    status: 502,
+    retryable: false,
+    code: "AI_BAD_RESPONSE",
+  });
+};
+
+/**
+ * "שיחה על הניסוח": עריכת פסקה קיימת אחת (CURRENT) לפי הודעה חופשית של
+ * המאבחנת, עם היסטוריית שיחה קצרה לצורך הקשר. יש רק נוסח נוכחי אחד - בלי
+ * ניהול גרסאות - והשיחה עצמה אינה נשמרת בשום מקום; היא עוברת כקלט לכל
+ * קריאה ומוחזרת רק כ-note קצר שמסביר מה השתנה.
+ *
+ * @param {object} params
+ * @param {string} params.sectionId
+ * @param {"rephrase"|"draft"} params.mode
+ * @param {string} params.sourceText    - המקור העובדתי היחיד (הערות המאבחנת
+ *                                        או הקשר מתויג מהשאלונים)
+ * @param {string} params.currentText   - הנוסח הנוכחי (כולל עריכות ידניות)
+ * @param {Array<{role: "user"|"assistant", text: string}>} [params.history]
+ * @param {string} params.message       - ההודעה החדשה של המאבחנת
+ * @param {object} [params.child]
+ * @param {object} [params.parent]
+ * @param {string} [params.childGender]
+ * @returns {Promise<{text: string, note: string, provider: string, model: string, usage: object}>}
+ */
+const refineSection = async ({
+  sectionId,
+  mode,
+  sourceText,
+  currentText,
+  history,
+  message,
+  child,
+  parent,
+  childGender,
+}) => {
+  if (typeof message !== "string" || !message.trim()) {
+    throw new AiError("message is empty", {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+  if (message.length > prompts.REFINE_MAX_MESSAGE_CHARS) {
+    throw new AiError(
+      `message exceeds ${prompts.REFINE_MAX_MESSAGE_CHARS} chars`,
+      { status: 400, retryable: false, code: "AI_ERROR" },
+    );
+  }
+
+  if (typeof currentText !== "string" || !currentText.trim()) {
+    throw new AiError("currentText is empty", {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+  if (currentText.length > prompts.MAX_INPUT_CHARS) {
+    throw new AiError(`currentText exceeds ${prompts.MAX_INPUT_CHARS} chars`, {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+
+  if (typeof sourceText !== "string") {
+    throw new AiError("sourceText must be a string", {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+  if (sourceText.length > prompts.MAX_INPUT_CHARS) {
+    throw new AiError(`sourceText exceeds ${prompts.MAX_INPUT_CHARS} chars`, {
+      status: 400,
+      retryable: false,
+      code: "AI_ERROR",
+    });
+  }
+
+  const historyArr = Array.isArray(history) ? history : [];
+  if (historyArr.length > prompts.REFINE_MAX_HISTORY) {
+    throw new AiError(
+      `history exceeds ${prompts.REFINE_MAX_HISTORY} items`,
+      { status: 400, retryable: false, code: "AI_ERROR" },
+    );
+  }
+  for (const item of historyArr) {
+    const validRole = item && (item.role === "user" || item.role === "assistant");
+    const validText =
+      item && typeof item.text === "string" && item.text.length <= prompts.REFINE_MAX_MESSAGE_CHARS;
+    if (!validRole || !validText) {
+      throw new AiError("history item is invalid", {
+        status: 400,
+        retryable: false,
+        code: "AI_ERROR",
+      });
+    }
+  }
+
+  // 1. הסרת פרטים מזהים לפני היציאה החוצה - מפה אחת, מופעלת בנפרד על
+  //    כל חלק (SOURCE/CURRENT/היסטוריה/MESSAGE) כדי לא לדלוף טוקנים בין חלקים
+  const entityMap = deidentify.buildEntityMap(child, parent);
+
+  const sourceRedacted = deidentify.redact(sourceText, entityMap);
+  const currentRedacted = deidentify.redact(currentText, entityMap);
+  const messageRedacted = deidentify.redact(message, entityMap);
+  const historyRedacted = historyArr.map((item) => ({
+    role: item.role,
+    ...deidentify.redact(item.text, entityMap),
+  }));
+
+  const allReplacements = [
+    ...sourceRedacted.replacements,
+    ...currentRedacted.replacements,
+    ...messageRedacted.replacements,
+    ...historyRedacted.flatMap((h) => h.replacements),
+  ];
+  const seenTokens = new Set();
+  const replacements = [];
+  for (const r of allReplacements) {
+    if (!seenTokens.has(r.token)) {
+      seenTokens.add(r.token);
+      replacements.push(r);
+    }
+  }
+
+  // 2. בניית הפרומפט (בשרת בלבד)
+  const params = {
+    systemPrompt: prompts.buildRefineSystemPrompt(sectionId, mode),
+    userText: prompts.buildRefineUserContent({
+      sourceText: sourceRedacted.text,
+      currentText: currentRedacted.text,
+      history: historyRedacted.map((h) => ({ role: h.role, text: h.text })),
+      message: messageRedacted.text,
+      childGender,
+    }),
+    responseMimeType: "application/json",
+    maxOutputTokens: 2048,
+  };
+
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  const chain = getChain();
+
+  if (chain.length === 0) {
+    throw new AiError("No valid AI provider configured", {
+      status: 500,
+      retryable: false,
+      code: "AI_CONFIG",
+    });
+  }
+
+  // 3. מעבר על השרשרת עד להצלחה
+  let lastError;
+
+  for (const name of chain) {
+    const provider = providers[name];
+    try {
+      const result = await callProviderWithRetry(provider, params, timeoutMs);
+      const parsed = parseRefineResponse(result.text);
+
+      // 4. החזרת הפרטים המזהים לטקסט ולהערה
+      const finalText = deidentify.restore(parsed.text, replacements);
+      const finalNote = deidentify.restore(parsed.note, replacements);
+
+      console.log(
+        `[ai] refine ok provider=${name} model=${result.model} tokens=${result.usage?.totalTokens}`,
+      );
+
+      return {
+        text: finalText,
+        note: finalNote,
+        provider: name,
+        model: result.model,
+        usage: result.usage,
+      };
+    } catch (error) {
+      lastError = error;
+      console.error(`[ai] refine provider "${name}" failed: ${error.message}`);
+
+      // שגיאה שאינה זמנית (מפתח פגום, תוכן חסום, תשובה לא תקינה) —
+      // אין טעם לעבור לספק אחר
+      if (!error.retryable) throw error;
+    }
+  }
+
+  throw lastError;
+};
+
 module.exports = {
   rephraseSection,
   checkSectionPlausibility,
   draftSectionFromQuestionnaires,
+  refineSection,
 };

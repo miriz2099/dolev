@@ -113,27 +113,41 @@ module.exports = {
    * @param {string} params.systemPrompt
    * @param {string} params.userText
    * @param {AbortSignal} [params.signal]
+   * @param {string} [params.responseMimeType] - למשל "application/json"; מתווסף
+   *   ל-config רק כשהוא מועבר, בלי לשנות התנהגות קיימת
+   * @param {number} [params.maxOutputTokens] - במקום ברירת המחדל 1200, רק כשמועבר
    * @returns {Promise<{text: string, usage: object, model: string}>}
    */
-  async complete({ systemPrompt, userText, signal }) {
+  async complete({
+    systemPrompt,
+    userText,
+    signal,
+    responseMimeType,
+    maxOutputTokens,
+  }) {
     const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
     try {
       const ai = getClient();
 
+      const config = {
+        systemInstruction: systemPrompt,
+        // נמוך בכוונה: המשימה היא ניסוח מחדש, לא יצירתיות.
+        temperature: 0.2,
+        maxOutputTokens: maxOutputTokens || 1200,
+        // מבטל "חשיבה" — מיותרת למשימת rephrase, חוסכת טוקנים וזמן.
+        // ⚠️ אם תעברי ל-gemini-2.5-pro או לדור 3 — הסירי/התאימי את השורה.
+        thinkingConfig: buildThinkingConfig(model),
+        abortSignal: signal,
+      };
+      if (responseMimeType) {
+        config.responseMimeType = responseMimeType;
+      }
+
       const response = await ai.models.generateContent({
         model,
         contents: userText,
-        config: {
-          systemInstruction: systemPrompt,
-          // נמוך בכוונה: המשימה היא ניסוח מחדש, לא יצירתיות.
-          temperature: 0.2,
-          maxOutputTokens: 1200,
-          // מבטל "חשיבה" — מיותרת למשימת rephrase, חוסכת טוקנים וזמן.
-          // ⚠️ אם תעברי ל-gemini-2.5-pro או לדור 3 — הסירי/התאימי את השורה.
-          thinkingConfig: buildThinkingConfig(model),
-          abortSignal: signal,
-        },
+        config,
       });
 
       const text = response.text?.trim();

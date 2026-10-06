@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import consentFormService from "../services/consentForm.service";
 import { formatDate } from "../utils/dateFormat";
+import SignatureInput from "../components/SignatureInput";
 
 const PublicConsentForm = () => {
   const { token } = useParams();
@@ -38,13 +39,14 @@ const PublicConsentForm = () => {
     e.preventDefault();
     setSubmitError(null);
 
-    if (!signature.trim()) return setSubmitError("יש להזין חתימה");
+    if (!signature)
+      return setSubmitError("יש לחתום או להעלות תמונה של החתימה");
     if (!agreed) return setSubmitError("יש לאשר את ההסכמה");
 
     try {
       setSubmitting(true);
       await consentFormService.signByToken(token, {
-        signature: signature.trim(),
+        signature,
         agreed,
       });
       setSuccess(true);
@@ -247,20 +249,9 @@ const PublicConsentForm = () => {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">
-                חתימה *{" "}
-                <span className="text-gray-400 font-normal text-xs">
-                  (הקלד/י את שמך המלא כחתימה)
-                </span>
+                חתימה *
               </label>
-              <input
-                type="text"
-                value={signature}
-                onChange={(e) => setSignature(e.target.value)}
-                placeholder="הקלד/י כאן את שמך המלא"
-                className="w-full border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 bg-white font-bold italic"
-                style={{ fontFamily: "cursive" }}
-                disabled={submitting}
-              />
+              <SignatureInput value={signature} onChange={setSignature} />
             </div>
           </div>
 
