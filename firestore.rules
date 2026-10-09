@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// =====================================================================
+// Firestore Security Rules - Dolev
+//
+// IMPORTANT: these rules apply ONLY to requests that come directly from the
+// browser (Firebase client SDK). The server (Cloud Functions, Admin SDK)
+// bypasses them completely, so every API endpoint keeps working as-is.
+//
+// Principle: deny by default. The browser may touch only the few paths it
+// actually uses today:
+//   users      - read own profile; staff read the users list
+//   inquiries  - anyone may create a contact-form inquiry; only admin reads
+// Everything else goes through the API only.
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    // role of the signed-in user, read from users/{uid}
+    function hasRole(roles) {
+      return signedIn()
+        && exists(userPath(request.auth.uid))
+        && get(userPath(request.auth.uid)).data.get('role', '') in roles;
+    }
+
+    function isStaff() {
+      return hasRole(['therapist', 'admin']);
+    }
+
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+
+    function optionalString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // ---------------------------------------------------------------
+    // users: profiles are created ONLY by the server (Admin SDK).
+    // The browser can read its own profile (AuthContext, login) and
+    // staff can list users (staff management, approvals, add child/parent).
+    // Nobody can create, change or delete a profile from the browser -
+    // in particular nobody can give themselves a role.
+    // ---------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || isStaff());
+      allow list: if isStaff();
+      allow create, update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // inquiries: the public contact form (ContactModal) adds a document,
+    // possibly without being signed in. Only the admin reads them
+    // (InquiriesList). Status changes and replies go through the API.
+    // ---------------------------------------------------------------
+    match /inquiries/{inquiryId} {
+      allow create: if request.resource.data.keys().hasOnly([
+                         'fullname', 'email', 'phone', 'message',
+                         'childFirstName', 'childLastName', 'childBirthDate',
+                         'status', 'createdAt'])
+                    && request.resource.data.fullname is string
+                    && request.resource.data.fullname.size() > 0
+                    && request.resource.data.fullname.size() <= 200
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() <= 5000
+                    && optionalString(request.resource.data, 'email', 200)
+                    && optionalString(request.resource.data, 'phone', 50)
+                    && optionalString(request.resource.data, 'childFirstName', 100)
+                    && optionalString(request.resource.data, 'childLastName', 100)
+                    && optionalString(request.resource.data, 'childBirthDate', 20)
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Everything else (children, diagnoses, questionnaires, reports,
+    // messages, consent forms, diary, ai_audit, counters ...):
+    // browser access is denied. The API (Admin SDK) is not affected.
+    // ---------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

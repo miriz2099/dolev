@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import reportService from "../services/report.service";
+import reportService, { containsMockText } from "../services/report.service";
 
 export const MIN_CHARS = 15;
 
@@ -40,6 +40,7 @@ const AiRephraseField = ({
   const chatScrollRef = useRef(null);
 
   const isEdited = Boolean(suggestion) && editedText !== suggestion.text;
+  const hasMockText = containsMockText(editedText);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -108,7 +109,7 @@ const AiRephraseField = ({
   };
 
   const acceptSuggestion = () => {
-    if (!editedText.trim()) return;
+    if (!editedText.trim() || containsMockText(editedText)) return;
     onChange(editedText);
     setSuggestion(null);
   };
@@ -310,6 +311,11 @@ const AiRephraseField = ({
                     ביטול העריכה הידנית
                   </button>
                 )}
+                {hasMockText && (
+                  <p className="text-sm text-red-600 mt-2">
+                    הנוסח מכיל טקסט דמה ולא ניתן לאשר אותו
+                  </p>
+                )}
               </div>
             </div>
 
@@ -392,7 +398,7 @@ const AiRephraseField = ({
               <button
                 type="button"
                 onClick={acceptSuggestion}
-                disabled={refining}
+                disabled={refining || hasMockText}
                 className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 החלף את הטקסט

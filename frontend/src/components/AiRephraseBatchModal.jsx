@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import reportService from "../services/report.service";
+import reportService, { containsMockText } from "../services/report.service";
 
 const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
   const { currentUser } = useAuth();
@@ -33,18 +33,25 @@ const AiRephraseBatchModal = ({ diagnosisId, blocks, onClose, onConfirm }) => {
             signal: controller.signal,
             onProgress: (event) => {
               if (event.type === "result") {
+                const isMock = !event.error && containsMockText(event.text);
                 setResults((prev) => ({
                   ...prev,
                   [event.sectionId]: event.error
                     ? { status: "error", error: event.error }
-                    : {
-                        status: "done",
-                        text: event.text,
-                        originalText: event.text,
-                        provider: event.provider,
-                        model: event.model,
-                        accepted: true,
-                      },
+                    : isMock
+                      ? {
+                          status: "error",
+                          error:
+                            "התקבלה תשובה לא תקינה משירות הניסוח. נסי שוב.",
+                        }
+                      : {
+                          status: "done",
+                          text: event.text,
+                          originalText: event.text,
+                          provider: event.provider,
+                          model: event.model,
+                          accepted: true,
+                        },
                 }));
               } else if (event.type === "fatal") {
                 setFatalError(event.error);

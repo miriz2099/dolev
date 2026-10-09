@@ -120,6 +120,20 @@ const streamNdjson = async (url, body, token, { onProgress, signal } = {}) => {
   if (buffer.trim()) onProgress?.(JSON.parse(buffer.trim()));
 };
 
+// 🆕 הגנה באתר (בנוסף להגנה בשרת): מזהה טקסט שהגיע בטעות מספק הדמה (mock),
+// למשל אם תצורת השרת שגויה. בודקת גם טקסט שמתחיל ב-"[MOCK]" וגם כזה
+// שמכיל אותו בהמשך.
+export const containsMockText = (text) =>
+  typeof text === "string" && text.trim().includes("[MOCK]");
+
+const MOCK_TEXT_ERROR = "התקבלה תשובה לא תקינה משירות הניסוח. נסי שוב.";
+
+const assertRealAiText = (text) => {
+  if (containsMockText(text)) {
+    throw new Error(MOCK_TEXT_ERROR);
+  }
+};
+
 const reportService = {
   // שליפת דוח לפי אבחון (או null אם אין)
   getByDiagnosis: (diagnosisId, token) =>
@@ -154,28 +168,42 @@ const reportService = {
 
   // 🆕 ניסוח מחדש של מקטע ע"י AI.
   // מחזיר הצעה בלבד - השמירה מתבצעת רק אם המאבחנת מאשרת בממשק.
-  rephrase: (diagnosisId, sectionId, rawText, token) =>
-    fetchWithAuth(`${BASE_URL}/reports/ai/rephrase`, token, {
+  rephrase: async (diagnosisId, sectionId, rawText, token) => {
+    const result = await fetchWithAuth(`${BASE_URL}/reports/ai/rephrase`, token, {
       method: "POST",
       body: JSON.stringify({ diagnosisId, sectionId, rawText }),
-    }),
+    });
+    assertRealAiText(result.text);
+    return result;
+  },
 
   // 🆕 יצירת טיוטה ראשונית לסעיף מתוך נתוני שאלוני ההורים/בית הספר.
   // מחזיר הצעה בלבד - השמירה מתבצעת רק אם המאבחנת מאשרת בממשק (כמו rephrase).
-  draftFromQuestionnaires: (diagnosisId, sectionId, token) =>
-    fetchWithAuth(`${BASE_URL}/reports/ai/draft-from-questionnaires`, token, {
-      method: "POST",
-      body: JSON.stringify({ diagnosisId, sectionId }),
-    }),
+  draftFromQuestionnaires: async (diagnosisId, sectionId, token) => {
+    const result = await fetchWithAuth(
+      `${BASE_URL}/reports/ai/draft-from-questionnaires`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ diagnosisId, sectionId }),
+      },
+    );
+    assertRealAiText(result.text);
+    return result;
+  },
 
   // 🆕 "שיחה על הניסוח" - עריכת הנוסח המוצע הנוכחי לפי הודעה חופשית של
   // המאבחנת. מחזיר { text, note, provider, model } - הטקסט המוצע מוחלף
   // בתיבת הניסוח, השמירה בדוח עדיין מתבצעת רק ב"החלף את הטקסט".
-  refine: (diagnosisId, payload, token) =>
-    fetchWithAuth(`${BASE_URL}/reports/ai/refine`, token, {
+  refine: async (diagnosisId, payload, token) => {
+    const result = await fetchWithAuth(`${BASE_URL}/reports/ai/refine`, token, {
       method: "POST",
       body: JSON.stringify({ diagnosisId, ...payload }),
-    }),
+    });
+    assertRealAiText(result.text);
+    assertRealAiText(result.note);
+    return result;
+  },
 
   // 🆕 ניסוח מחדש קבוצתי - שולח כמה מקטעים בבקשה אחת, אבל כל מקטע
   // מנוסח בנפרד מאחורי הקלעים (ראה functions/controllers/report.controller.js).

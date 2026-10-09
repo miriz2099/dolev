@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// =====================================================================
+// Storage Security Rules - Dolev
+//
+// The only browser use of Storage today: a parent uploads attachments to
+// the parent questionnaire, at questionnaires/{childId}/{fileName}
+// (ParentQuestionnaire.jsx), then calls getDownloadURL.
+// The server does not use Storage. Everything else is denied.
+// =====================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isParentOf(childId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/children/$(childId))
+        && firestore.get(/databases/(default)/documents/children/$(childId)).data.get('parentId', '') == request.auth.uid;
+    }
+
+    function isStaff() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') in ['therapist', 'admin'];
+    }
+
+    match /questionnaires/{childId}/{fileName} {
+      // upload: only the child's parent, up to 10 MB, PDF or image only
+      // (the file input accepts .pdf,.jpg,.jpeg,.png)
+      allow create: if isParentOf(childId)
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf|image/(jpeg|png)');
+      // read (incl. getDownloadURL right after upload): the parent or staff
+      allow read: if isParentOf(childId) || isStaff();
+      // no overwrite / delete from the browser
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

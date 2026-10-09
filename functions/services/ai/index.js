@@ -6,8 +6,13 @@
 // משתני סביבה (functions/.env):
 //   GEMINI_API_KEY=...
 //   GEMINI_MODEL=gemini-2.5-flash
-//   AI_PROVIDER_CHAIN=gemini,mock
+//   AI_PROVIDER_CHAIN=gemini
 //   AI_TIMEOUT_MS=25000
+//
+// ה-mock provider הוא לאמולטור בלבד (functions/.env.local: AI_PROVIDER_CHAIN
+// =mock, לצד FUNCTIONS_EMULATOR=true שה-Functions Emulator מגדיר אוטומטית).
+// הוא אינו חוליית fallback בשרת שבאוויר: getChain() מסנן אותו משם אפילו אם
+// נכתב בשרשרת בטעות, כדי שמשתמשת אמיתית לעולם לא תקבל טקסט "[MOCK]".
 
 const { AiError } = require("./errors");
 const prompts = require("./prompts");
@@ -19,15 +24,19 @@ const providers = {
   // openai: require("./providers/openai.provider"),  // כשתוסיפי — רק שורה כאן
 };
 
-const DEFAULT_CHAIN = "gemini,mock";
+const DEFAULT_CHAIN = "gemini";
 const DEFAULT_TIMEOUT_MS = 25000;
 const MAX_ATTEMPTS_PER_PROVIDER = Number(process.env.AI_MAX_ATTEMPTS) || 2;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** קורא את שרשרת הספקים מה-env ומסנן שמות לא מוכרים */
-const getChain = () =>
-  (process.env.AI_PROVIDER_CHAIN || DEFAULT_CHAIN)
+/**
+ * קורא את שרשרת הספקים מה-env, מסנן שמות לא מוכרים, ומסיר את ה-mock
+ * כשרצים מחוץ לאמולטור - כדי שספק הדמה לעולם לא "יתפוס" כ-fallback
+ * בשרת שבאוויר אם Gemini נכשל בשגיאה זמנית (429/5xx).
+ */
+const getChain = () => {
+  const names = (process.env.AI_PROVIDER_CHAIN || DEFAULT_CHAIN)
     .split(",")
     .map((name) => name.trim())
     .filter((name) => {
@@ -35,6 +44,19 @@ const getChain = () =>
       console.warn(`[ai] unknown provider in chain: "${name}" - skipped`);
       return false;
     });
+
+  const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+
+  return names.filter((name) => {
+    if (name === "mock" && !isEmulator) {
+      console.warn(
+        "[ai] mock provider is disabled outside the emulator – skipped",
+      );
+      return false;
+    }
+    return true;
+  });
+};
 
 /** עוטף קריאה ב-timeout באמצעות AbortController */
 const withTimeout = async (provider, params, timeoutMs) => {
@@ -513,10 +535,17 @@ const refineSection = async ({
       childGender,
     }),
     responseMimeType: "application/json",
-    maxOutputTokens: 2048,
+    // "חשיבה" קטנה ומוגבלת: המשימה כאן היא קריאה והבנה של בקשת תיקון חופשית
+    // מהמאבחנת לעומת הנוסח הנוכחי, לא רק ניסוח מכני - לכן, בניגוד ל-
+    // rephrase/draft/batch (חשיבה כבויה), כאן מופעלת חשיבה מוגבלת. טוקני
+    // החשיבה נספרים במכסת הפלט, ולכן maxOutputTokens גבוה יותר.
+    thinkingBudget: 1024,
+    maxOutputTokens: 4096,
   };
 
-  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  // timeout ייעודי ל"שיחה על הניסוח" (חשיבה פעילה לוקחת יותר זמן מניסוח
+  // מכני רגיל) - לא ה-AI_TIMEOUT_MS המשותף של שאר הפונקציות.
+  const timeoutMs = Number(process.env.AI_REFINE_TIMEOUT_MS) || 45000;
   const chain = getChain();
 
   if (chain.length === 0) {

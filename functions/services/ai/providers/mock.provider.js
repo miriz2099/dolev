@@ -1,11 +1,13 @@
 // functions/services/ai/providers/mock.provider.js
 //
-// ספק דמה. שימושים:
+// ספק דמה - לאמולטור בלבד. שימושים:
 //   1. פיתוח UI בלי לשרוף את המכסה החינמית.
 //   2. בדיקות אוטומטיות (deterministic - תמיד אותה תוצאה).
-//   3. חוליה אחרונה בשרשרת ה-fallback, כדי שהמערכת לא "תיפול" בהדגמה.
 //
-// הפעלה:  AI_PROVIDER_CHAIN=mock   (או  gemini,mock )
+// הפעלה (רק באמולטור): functions/.env.local -> AI_PROVIDER_CHAIN=mock
+// (או gemini,mock). ⚠️ זו לא חוליית fallback בשרת שבאוויר: getChain()
+// ב-index.js מסיר "mock" מהשרשרת כש-FUNCTIONS_EMULATOR אינו "true", כך
+// שמשתמשת אמיתית לעולם לא תקבל טקסט "[MOCK]" גם אם Gemini נכשל.
 
 const PROVIDER_NAME = "mock";
 

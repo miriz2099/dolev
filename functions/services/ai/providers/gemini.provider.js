@@ -54,7 +54,7 @@ const mapError = (error) => {
       status: 429,
       retryable: !isDailyQuota,
       provider: PROVIDER_NAME,
-      code: "AI_RATE_LIMIT",
+      code: isDailyQuota ? "AI_DAILY_QUOTA" : "AI_RATE_LIMIT",
     });
   }
 
@@ -116,6 +116,10 @@ module.exports = {
    * @param {string} [params.responseMimeType] - למשל "application/json"; מתווסף
    *   ל-config רק כשהוא מועבר, בלי לשנות התנהגות קיימת
    * @param {number} [params.maxOutputTokens] - במקום ברירת המחדל 1200, רק כשמועבר
+   * @param {number} [params.thinkingBudget] - "חשיבה" מוגבלת (למשל ל-refineSection);
+   *   רק כשמועבר. למודלי gemini-3 מתורגם ל-{thinkingLevel:"low"} (gemini-3 לא
+   *   תומך בתקצוב מספרי); בלעדיו - ההתנהגות הקיימת (buildThinkingConfig) בדיוק
+   *   כמו היום, כך ש-rephrase/draft/batch לא משתנים.
    * @returns {Promise<{text: string, usage: object, model: string}>}
    */
   async complete({
@@ -124,20 +128,29 @@ module.exports = {
     signal,
     responseMimeType,
     maxOutputTokens,
+    thinkingBudget,
   }) {
     const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
     try {
       const ai = getClient();
 
+      const thinkingConfig =
+        thinkingBudget === undefined
+          ? buildThinkingConfig(model)
+          : /gemini-3/.test(model)
+            ? { thinkingLevel: "low" }
+            : { thinkingBudget };
+
       const config = {
         systemInstruction: systemPrompt,
         // נמוך בכוונה: המשימה היא ניסוח מחדש, לא יצירתיות.
         temperature: 0.2,
         maxOutputTokens: maxOutputTokens || 1200,
-        // מבטל "חשיבה" — מיותרת למשימת rephrase, חוסכת טוקנים וזמן.
-        // ⚠️ אם תעברי ל-gemini-2.5-pro או לדור 3 — הסירי/התאימי את השורה.
-        thinkingConfig: buildThinkingConfig(model),
+        // מבטל "חשיבה" כברירת מחדל — מיותרת למשימת rephrase, חוסכת טוקנים
+        // וזמן. ⚠️ אם תעברי ל-gemini-2.5-pro או לדור 3 — הסירי/התאימי את
+        // buildThinkingConfig. חשיבה מוגבלת אפשרית דרך thinkingBudget לעיל.
+        thinkingConfig,
         abortSignal: signal,
       };
       if (responseMimeType) {
