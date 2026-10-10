@@ -1,7 +1,33 @@
-const { db } = require("../config/firebase");
+const { db, admin } = require("../config/firebase");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const pdfService = require("../services/pdf.service");
+const { sendSchoolCorrectionEmail } = require("../helpers/mail.helper");
+
+/**
+ * הרשאה: מותר רק לאדמין או למאבחן/ת שהאבחון שייך לו/ה - אותו היגיון כמו
+ * getDiagnosisAccess ב-report.controller.js, מועתק מקומית כדי לא לגעת
+ * באותו קובץ.
+ */
+const getDiagnosisAccess = async (uid, diagnosisId) => {
+  const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+  if (!diagDoc.exists) {
+    return { ok: false, code: 404, error: "האבחון לא נמצא" };
+  }
+  const diagnosis = diagDoc.data();
+
+  const userDoc = await db.collection("users").doc(uid).get();
+  const role = userDoc.exists ? userDoc.data().role : null;
+
+  const isAdmin = role === "admin";
+  const isOwnerTherapist = diagnosis.therapistId === uid;
+
+  if (!isAdmin && !isOwnerTherapist) {
+    return { ok: false, code: 403, error: "אין הרשאה לגשת לאבחון זה" };
+  }
+  return { ok: true, diagnosis };
+};
+
 const createSchoolInvitation = async (req, res) => {
   try {
     const { childId, diagnosisId, teacherEmail, teacherName } = req.body;
@@ -136,12 +162,20 @@ const checkInvitation = async (req, res) => {
       .limit(1)
       .get();
 
-    let initialFormData = invitationData.draftData || null;
-
-    // אם קיים שאלון סופי, הוא מקבל עדיפות על הטיוטה
+    // סדר עדיפות: טיוטה שנשמרה באמצע תיקון > השאלון האחרון שנשלח > ריק -
+    // כך שטיוטה שהמורה שמר/ה באמצע תיקון לא תידרס ע"י השאלון הישן יותר.
+    let initialFormData = null;
     if (!existingSurveySnapshot.empty) {
       initialFormData = existingSurveySnapshot.docs[0].data().formData;
     }
+    if (invitationData.draftData) {
+      initialFormData = invitationData.draftData;
+    }
+
+    const correctionNote =
+      invitationData.status === "pending" && invitationData.lastCorrection
+        ? invitationData.lastCorrection.note
+        : null;
 
     res.status(200).json({
       childName: childDoc.exists
@@ -149,6 +183,7 @@ const checkInvitation = async (req, res) => {
         : "התלמיד",
       teacherName: invitationData.teacherName,
       draftData: initialFormData, // זה יכיל את השאלון הקודם או את הטיוטה
+      correctionNote,
     });
   } catch (error) {
     res.status(500).json({ error: "שגיאה באימות" });
@@ -197,10 +232,12 @@ const submitSchoolSurvey = async (req, res) => {
       invitationId: invitationDoc.id,
     });
 
-    // 4. סגירת הלינק
+    // 4. סגירת הלינק. lastCorrection נשאר כמו שהוא (היסטוריה) - מוחקים רק
+    // את draftData, כדי שתיקון עתידי לא "יזכור" טיוטה מהסיבוב הזה.
     batch.update(invitationDoc.ref, {
       status: "completed",
       completedAt: new Date().toISOString(),
+      draftData: null,
     });
 
     await batch.commit();
@@ -336,7 +373,25 @@ const exportSchoolQuestionnairePDF = async (req, res) => {
 };
 const resendSchoolInvitation = async (req, res) => {
   try {
-    const { diagnosisId } = req.body;
+    const { diagnosisId, correctionNote } = req.body;
+    const uid = req.user.uid;
+
+    if (!diagnosisId) {
+      return res.status(400).json({ error: "חסר diagnosisId" });
+    }
+
+    // --- הרשאה: רק אדמין או המאבחן/ת בעל/ת האבחון ---
+    const access = await getDiagnosisAccess(uid, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
+
+    // --- ולידציה: יש לכתוב למורה מה לתקן ---
+    const trimmedNote =
+      typeof correctionNote === "string" ? correctionNote.trim() : "";
+    if (trimmedNote.length < 5 || trimmedNote.length > 2000) {
+      return res.status(400).json({ error: "יש לכתוב למורה מה לתקן" });
+    }
 
     // 1. חיפוש ההזמנה הקיימת
     const snapshot = await db
@@ -352,55 +407,58 @@ const resendSchoolInvitation = async (req, res) => {
     const invitationDoc = snapshot.docs[0];
     const invData = invitationDoc.data();
 
-    // 2. עדכון תוקף ל-7 ימים נוספים וסטטוס ל-pending
+    // 2. עדכון תוקף ל-7 ימים נוספים, סטטוס ל-pending, ומחיקת טיוטה ישנה -
+    // כך שהשאלון האחרון שנשלח ייטען כבסיס לתיקון. השמירה ב-DB קודמת
+    // לשליחת המייל, כדי שלא "נאבד" את ההחזרה לתיקון אם המייל נכשל.
     const newExpiry = new Date();
     newExpiry.setDate(newExpiry.getDate() + 7);
+    const requestedAt = new Date().toISOString();
+    const correctionEntry = {
+      note: trimmedNote,
+      requestedAt,
+      requestedBy: uid,
+    };
 
     await invitationDoc.ref.update({
       expiryDate: newExpiry.toISOString(),
       status: "pending", // חשוב: מחזיר את האפשרות לערוך אם זה היה completed
+      draftData: null,
+      lastCorrection: correctionEntry,
+      correctionHistory: admin.firestore.FieldValue.arrayUnion(correctionEntry),
     });
 
-    // 3. יצירת הלינק (ממש כמו ביצירה הראשונית)
+    // 3. שם פרטי של הילד/ה לנושא המייל (אם קיים)
+    let childFirstName = "";
+    if (invData.childId) {
+      const childDoc = await db
+        .collection("children")
+        .doc(invData.childId)
+        .get();
+      if (childDoc.exists) childFirstName = childDoc.data().firstName || "";
+    }
+
+    // 4. יצירת הלינק (ממש כמו ביצירה הראשונית)
     const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const inviteLink = `${baseUrl}/school-survey/${invData.token}`;
 
-    // 4. הגדרת המייל (Nodemailer)
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: "***REMOVED***",
-        pass: "***REMOVED***",
-      },
-    });
+    // 5. שליחת המייל - כשל כאן לא מוחק את ההחזרה לתיקון שכבר נשמרה
+    try {
+      await sendSchoolCorrectionEmail({
+        to: invData.teacherEmail,
+        teacherName: invData.teacherName,
+        childFirstName,
+        correctionNote: trimmedNote,
+        link: inviteLink,
+      });
+    } catch (mailErr) {
+      console.error("ERROR sending school correction email:", mailErr);
+      return res.status(502).json({
+        error:
+          "ההחזרה לתיקון נשמרה, אך שליחת המייל למורה נכשלה. נסי שוב.",
+      });
+    }
 
-    const mailOptions = {
-      from: '"מרכז האבחון" <***REMOVED***>',
-      to: invData.teacherEmail,
-      subject: `עדכון/תזכורת: שאלון הערכה לימודי עבור התלמיד/ה`,
-      html: `
-        <div dir="rtl" style="font-family: sans-serif; text-align: right;">
-          <h2>שלום ${invData.teacherName},</h2>
-          <p>התקבלה בקשה מהמרכז לעדכון או השלמת פרטים בשאלון התפקודי של התלמיד/ה.</p>
-          <p>אם כבר מילאת את השאלון, תוכלי להיכנס לקישור ולבצע את התיקונים הנדרשים.</p>
-          <div style="margin: 30px 0;">
-            <a href="${inviteLink}" style="background-color: #e11d48; color: white; padding: 12px 25px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block;">
-              כניסה לעדכון השאלון
-            </a>
-          </div>
-          <p>הקישור הוא אישי ומאובטח, ותקף ל-7 ימים הקרובים.</p>
-          <p>תודה על שיתוף הפעולה,</p>
-          <p>צוות המרכז.</p>
-        </div>
-      `,
-    };
-
-    // 5. שליחה בפועל
-    await transporter.sendMail(mailOptions);
-
-    res.status(200).json({ message: "המייל נשלח שוב למורה בהצלחה" });
+    res.status(200).json({ message: "השאלון הוחזר למורה לתיקון והמייל נשלח" });
   } catch (error) {
     console.error("ERROR IN resendSchoolInvitation:", error);
     res
@@ -448,6 +506,16 @@ const resetSchoolInvitation = async (req, res) => {
   try {
     const { diagnosisId } = req.body;
     const therapistId = req.user.uid; // המאבחן שמבצע את האיפוס
+
+    if (!diagnosisId) {
+      return res.status(400).json({ error: "חסר diagnosisId" });
+    }
+
+    // --- הרשאה: רק אדמין או המאבחן/ת בעל/ת האבחון ---
+    const access = await getDiagnosisAccess(therapistId, diagnosisId);
+    if (!access.ok) {
+      return res.status(access.code).json({ error: access.error });
+    }
 
     // 1. מחיקת ההזמנה והשאלון של האבחון הספציפי
     const invSnapshot = await db

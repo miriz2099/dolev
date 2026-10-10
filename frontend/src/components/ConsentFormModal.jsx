@@ -205,6 +205,11 @@ const ConsentFormModal = ({ isOpen, onClose, consentForm, onSigned }) => {
               </div>
 
               <div>
+                <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-xl p-3 mb-3">
+                  ℹ️ שימו לב: במקרה של <span className="font-bold">הורים גרושים</span>,
+                  יש לשלוח את טופס ההסכמה גם להורה השני לחתימה. לאחר החתימה
+                  שלך, יופיע בכרטיס הטופס הכפתור "📨 שלח להורה השני".
+                </div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">
                   חתימה *
                 </label>

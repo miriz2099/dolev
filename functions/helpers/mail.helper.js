@@ -146,4 +146,52 @@ const sendInquiryReplyEmail = async ({ to, fullname, originalMessage, replyText 
   await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendWelcomeEmail, sendUrgentMessageEmail, sendInquiryReplyEmail };
+/** עטיפת & < > " ' לפני הכנסה ל-HTML, ואז המרת שורות חדשות ל-<br> */
+const escapeHtml = (str = "") =>
+  String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const sendSchoolCorrectionEmail = async ({
+  to,
+  teacherName,
+  childFirstName,
+  correctionNote,
+  link,
+}) => {
+  const greetName = teacherName ? `שלום ${teacherName},` : "שלום,";
+  const noteHtml = escapeHtml(correctionNote).replace(/\n/g, "<br>");
+
+  const mailOptions = {
+    from: `"מרכז האבחון דולב" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `בקשה לתיקון שאלון בית הספר – ${childFirstName || "עבור התלמיד/ה"}`,
+    html: `
+      <div dir="rtl" style="font-family: sans-serif; text-align: right; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2>${greetName}</h2>
+        <p style="font-size: 16px;">המאבחן/ת ביקש/ה לעדכן את הפרטים הבאים בשאלון:</p>
+        <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:12px; padding:16px; margin:20px 0;">
+          <p style="margin:0; color:#1f2937;">${noteHtml}</p>
+        </div>
+        <div style="margin: 25px 0;">
+          <a href="${link}" style="background-color:#2563eb; color:white; padding:12px 25px; text-decoration:none; border-radius:10px; font-weight:bold; display:inline-block;">
+            כניסה לתיקון השאלון
+          </a>
+        </div>
+        <p style="color:#6b7280; font-size: 14px;">התשובות הקודמות שלך שמורות – יש לתקן רק את מה שצוין. הקישור תקף ל-7 ימים.</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = {
+  sendWelcomeEmail,
+  sendUrgentMessageEmail,
+  sendInquiryReplyEmail,
+  sendSchoolCorrectionEmail,
+};

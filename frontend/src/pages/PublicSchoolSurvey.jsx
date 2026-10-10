@@ -171,6 +171,21 @@ const PublicSchoolSurvey = () => {
             קישור מאובטח
           </span>
         </div>
+
+        {data?.correctionNote && (
+          <div className="mt-4 bg-orange-50 border border-orange-300 rounded-2xl p-5">
+            <h3 className="font-bold text-orange-800 flex items-center gap-2 mb-2">
+              <span>↩️</span> השאלון הוחזר אליך לתיקון
+            </h3>
+            <p className="text-orange-900 whitespace-pre-wrap">
+              {data.correctionNote}
+            </p>
+            <p className="text-orange-700 text-sm mt-3">
+              התשובות הקודמות שלך כבר ממולאות. יש לתקן את מה שצוין ולשלוח
+              שוב.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* כאן אנחנו מחברים את הקומפוננטה שלך */}

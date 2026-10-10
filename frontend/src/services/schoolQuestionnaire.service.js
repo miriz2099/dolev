@@ -125,16 +125,19 @@ const schoolQuestionnaireService = {
     return response.json();
   },
 
-  resendInvite: async (diagnosisId, token) => {
+  resendInvite: async (diagnosisId, correctionNote, token) => {
     const response = await fetch(`${BASE_URL}/school-questionnaires/resend`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ diagnosisId }),
+      body: JSON.stringify({ diagnosisId, correctionNote }),
     });
-    if (!response.ok) throw new Error("Failed to resend invite");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "נכשלה ההחזרה לתיקון");
+    }
     return response.json();
   },
 

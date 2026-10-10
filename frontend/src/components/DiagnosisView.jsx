@@ -542,6 +542,7 @@ import GenericMessageModal from "./GenericMessageModal";
 import { useAuth } from "../contexts/AuthContext";
 import ReportForm from "./ReportForm";
 import childService from "../services/child.service";
+import { formatDate } from "../utils/dateFormat";
 
 const DiagnosisView = ({
   diagnosis,
@@ -579,6 +580,17 @@ const DiagnosisView = ({
     diagnosis.parentQuestionnaireStatus,
   );
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+
+  // 🆕 החזרת שאלון בית הספר לתיקון עם הערות למורה
+  const [schoolInvitation, setSchoolInvitation] = useState(null);
+  const [isSchoolCorrectionModalOpen, setIsSchoolCorrectionModalOpen] =
+    useState(false);
+  const [schoolCorrectionNote, setSchoolCorrectionNote] = useState("");
+  const [schoolCorrectionSubmitting, setSchoolCorrectionSubmitting] =
+    useState(false);
+  const [schoolCorrectionError, setSchoolCorrectionError] = useState("");
+  const [showCorrectionTooltip, setShowCorrectionTooltip] = useState(false);
+
   const { currentUser } = useAuth();
 
   // טעינת שאלון הורים
@@ -592,6 +604,7 @@ const DiagnosisView = ({
   useEffect(() => {
     if (activeSubTab === "questionnaires") {
       fetchSchoolAnswers();
+      fetchSchoolInvitation();
     }
   }, [activeSubTab]);
 
@@ -624,6 +637,53 @@ const DiagnosisView = ({
       console.error("Error fetching school answers:", err);
     } finally {
       setSchoolLoading(false);
+    }
+  };
+
+  // 🆕 מצב הזמנת שאלון בית הספר (status + lastCorrection) - לתצוגת "הוחזר
+  // לתיקון" בכרטיס
+  const fetchSchoolInvitation = async () => {
+    try {
+      const token = await currentUser.getIdToken();
+      const data = await schoolQuestionnaireService.getInviteByDiagnosis(
+        diagnosis.id,
+        token,
+      );
+      setSchoolInvitation(data);
+    } catch (err) {
+      console.error("Error fetching school invitation:", err);
+    }
+  };
+
+  const handleSendSchoolCorrection = async () => {
+    const note = schoolCorrectionNote.trim();
+    if (note.length < 5 || schoolCorrectionSubmitting) return;
+
+    setSchoolCorrectionSubmitting(true);
+    setSchoolCorrectionError("");
+    try {
+      const token = await currentUser.getIdToken();
+      await schoolQuestionnaireService.resendInvite(
+        diagnosis.id,
+        note,
+        token,
+      );
+      setIsSchoolCorrectionModalOpen(false);
+      setSchoolCorrectionNote("");
+      alert("השאלון הוחזר למורה לתיקון והמייל נשלח");
+      // עדכון ה-state בלי reload
+      setSchoolInvitation((prev) => ({
+        ...(prev || {}),
+        status: "pending",
+        lastCorrection: {
+          note,
+          requestedAt: new Date().toISOString(),
+        },
+      }));
+    } catch (err) {
+      setSchoolCorrectionError(err.message || "שליחת ההחזרה לתיקון נכשלה");
+    } finally {
+      setSchoolCorrectionSubmitting(false);
     }
   };
 
@@ -932,27 +992,46 @@ const DiagnosisView = ({
                         : "ממתין למילוי מורה"}
                     </p>
                   </div>
+
+                  {schoolAnswers?.formData &&
+                    schoolInvitation?.status === "pending" &&
+                    schoolInvitation?.lastCorrection && (
+                      <div className="relative flex items-center gap-2 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCorrectionTooltip((v) => !v);
+                          }}
+                          className="text-xs text-orange-600 font-medium hover:underline text-right"
+                        >
+                          ↩️ הוחזר לתיקון ב-
+                          {formatDate(
+                            schoolInvitation.lastCorrection.requestedAt,
+                          )}{" "}
+                          – ממתין למורה
+                        </button>
+                        {showCorrectionTooltip && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute z-10 top-full right-0 mt-1 w-64 bg-white border border-orange-200 rounded-xl shadow-lg p-3 text-xs text-gray-700 whitespace-pre-wrap"
+                          >
+                            {schoolInvitation.lastCorrection.note}
+                          </div>
+                        )}
+                      </div>
+                    )}
                 </div>
 
                 {/* הכפתורים יוצגו רק אם המורה כבר מילא את השאלון (כדי לאפשר תיקון/איפוס) */}
                 {schoolAnswers?.formData && !schoolLoading && (
                   <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                     <button
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        if (
-                          window.confirm(
-                            "להחזיר את השאלון למורה לתיקון? המורה יוכל לערוך את התשובות שוב.",
-                          )
-                        ) {
-                          const token = await currentUser.getIdToken();
-                          // כאן אפשר להשתמש בפונקציית resend או פונקציה ייעודית לתיקון
-                          await schoolQuestionnaireService.resendInvite(
-                            diagnosis.id,
-                            token,
-                          );
-                          alert("הודעה נשלחה למורה!");
-                        }
+                        setSchoolCorrectionError("");
+                        setIsSchoolCorrectionModalOpen(true);
                       }}
                       className="flex-1 text-[11px] font-bold py-2 rounded-xl bg-white text-orange-600 border border-orange-200 hover:bg-orange-50 shadow-sm transition-all"
                     >
@@ -1169,6 +1248,87 @@ const DiagnosisView = ({
         title="החזרת שאלון לתיקון"
         placeholder=" הערות להורים (מה עליהם לתקן)..."
       />
+
+      {/* 🆕 החזרת שאלון בית הספר לתיקון, עם הערות שנשלחות במייל למורה */}
+      {isSchoolCorrectionModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn"
+          onClick={() => !schoolCorrectionSubmitting && setIsSchoolCorrectionModalOpen(false)}
+        >
+          <div
+            className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden border border-gray-100"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-orange-600 p-6 text-white flex justify-between items-center">
+              <h3 className="text-xl font-bold">
+                החזרת שאלון בית הספר לתיקון
+              </h3>
+              <button
+                onClick={() =>
+                  !schoolCorrectionSubmitting &&
+                  setIsSchoolCorrectionModalOpen(false)
+                }
+                className="text-2xl hover:opacity-70 transition-opacity"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-8">
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                מה המורה צריך/ה לתקן?
+              </label>
+              <textarea
+                className="w-full h-40 p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none resize-none text-right text-gray-700"
+                placeholder="לדוגמה: נא להשלים את פירוט הקשיים בקריאה, ולסמן את רמת התפקוד בחשבון"
+                value={schoolCorrectionNote}
+                onChange={(e) =>
+                  setSchoolCorrectionNote(e.target.value.slice(0, 2000))
+                }
+                maxLength={2000}
+                disabled={schoolCorrectionSubmitting}
+              />
+              <p className="text-xs text-gray-400 mt-1 text-left">
+                {schoolCorrectionNote.length}/2000
+              </p>
+
+              {schoolCorrectionError && (
+                <div className="mt-3 bg-red-50 border border-red-100 rounded-xl p-3 text-red-700 text-sm">
+                  {schoolCorrectionError}
+                </div>
+              )}
+
+              <div className="flex gap-4 mt-6 font-sans">
+                <button
+                  onClick={handleSendSchoolCorrection}
+                  disabled={
+                    schoolCorrectionNote.trim().length < 5 ||
+                    schoolCorrectionSubmitting
+                  }
+                  className="flex-1 bg-orange-600 text-white py-4 rounded-2xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 active:scale-95 disabled:bg-gray-300 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {schoolCorrectionSubmitting ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      שולח...
+                    </>
+                  ) : (
+                    "שליחה למורה"
+                  )}
+                </button>
+                <button
+                  onClick={() => setIsSchoolCorrectionModalOpen(false)}
+                  disabled={schoolCorrectionSubmitting}
+                  className="px-8 py-4 border border-gray-200 rounded-2xl font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
