@@ -20,7 +20,6 @@ import ChildDetails from "./pages/ChildDetails";
 import DiagnosisDetails from "./pages/DiagnosisDetails";
 import PublicSchoolSurvey from "./pages/PublicSchoolSurvey";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import UserProfile from "./pages/UserProfile";
 import PublicConsentForm from "./pages/PublicConsentForm";
 
@@ -79,7 +78,6 @@ function App() {
           <Route path="type" element={<Type />} />
           <Route path="contact-us" element={<ContactUs />} />
           <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
           <Route path="school-survey/:token" element={<PublicSchoolSurvey />} />
           <Route path="consent/:token" element={<PublicConsentForm />} />
 

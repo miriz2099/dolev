@@ -1,49 +1,10 @@
 // src/services/auth.service.js
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase.js"; // הייבוא מקובץ הקונפיגורציה שלך
-
-/**
- * פונקציה להרשמת משתמש חדש
- * 1. יוצרת משתמש ב-Auth
- * 2. שומרת את פרטי המשתמש ב-Firestore
- */
-export const registerUser = async (email, password, userData) => {
-  try {
-    // A. יצירת המשתמש במערכת האימות (Auth)
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password,
-    );
-    const user = userCredential.user;
-
-    // B. הכנת הנתונים לשמירה ב-DB
-    // אנחנו משתמשים ב-UID בתור המפתח של המסמך!
-    const userProfile = {
-      uid: user.uid,
-      email: user.email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      role: userData.role || "guest", // ברירת מחדל
-      phone: userData.phone || "",
-      createdAt: new Date().toISOString(),
-    };
-
-    // C. שמירה ב-Firestore באוסף 'users'
-    await setDoc(doc(db, "users", user.uid), userProfile);
-
-    console.log("User registered and profile created:", user.uid);
-    return userProfile;
-  } catch (error) {
-    console.error("Error in registerUser:", error);
-    throw error; // זורקים את השגיאה כדי שה-UI ידע להציג אותה
-  }
-};
 
 /**
  * פונקציה להתחברות
