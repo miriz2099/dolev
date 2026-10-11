@@ -84,6 +84,7 @@ const PublicSchoolSurvey = () => {
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isExpired, setIsExpired] = useState(false);
   const [data, setData] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -95,6 +96,7 @@ const PublicSchoolSurvey = () => {
         const result = await schoolQuestionnaireService.checkInvitation(token);
         setData(result);
       } catch (err) {
+        if (err.status === 410) setIsExpired(true);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -112,7 +114,12 @@ const PublicSchoolSurvey = () => {
       await schoolQuestionnaireService.submitSurvey(token, formData);
       setIsSubmitted(true);
     } catch (err) {
-      alert("שגיאה בשליחת השאלון: " + err.message);
+      if (err.status === 410) {
+        setIsExpired(true);
+        setError(err.message);
+      } else {
+        alert("שגיאה בשליחת השאלון: " + err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -122,9 +129,14 @@ const PublicSchoolSurvey = () => {
     try {
       await schoolQuestionnaireService.saveDraft(token, formData);
     } catch (err) {
+      if (err.status === 410) {
+        setIsExpired(true);
+        setError(err.message);
+      }
       console.error("Draft save failed", err);
     }
   };
+
   if (loading)
     return (
       <div className="p-20 text-center font-bold animate-pulse text-blue-600 font-sans">
@@ -144,6 +156,20 @@ const PublicSchoolSurvey = () => {
             תודה רבה על שיתוף הפעולה. המידע הועבר בצורה מאובטחת למאבחן.
           </p>
           <p className="text-sm text-gray-400 mt-6">ניתן לסגור חלון זה.</p>
+        </div>
+      </div>
+    );
+
+  // 🆕 תוקף קישור חד-פעמי פג (7 ימים) - מסך הודעה ברור במקום הטופס
+  if (isExpired)
+    return (
+      <div className="p-20 text-center font-sans" dir="rtl">
+        <div className="bg-white shadow-xl rounded-3xl p-12 max-w-2xl mx-auto border border-gray-100">
+          <div className="text-6xl mb-6">🕐</div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">
+            תוקף הקישור פג
+          </h2>
+          <p className="text-gray-600 text-lg">{error}</p>
         </div>
       </div>
     );

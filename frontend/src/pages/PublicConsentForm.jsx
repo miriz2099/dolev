@@ -9,6 +9,7 @@ const PublicConsentForm = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isExpired, setIsExpired] = useState(false);
   const [formData, setFormData] = useState(null);
 
   // שדות החתימה
@@ -27,6 +28,7 @@ const PublicConsentForm = () => {
         setFormData(data);
       } catch (err) {
         console.error("Error loading consent form:", err);
+        if (err.status === 410) setIsExpired(true);
         setError(err.message || "שגיאה בטעינת הטופס");
       } finally {
         setLoading(false);
@@ -52,7 +54,12 @@ const PublicConsentForm = () => {
       setSuccess(true);
     } catch (err) {
       console.error("Error signing:", err);
-      setSubmitError(err.message || "שגיאה בשמירת החתימה");
+      if (err.status === 410) {
+        setIsExpired(true);
+        setError(err.message || "שגיאה בשמירת החתימה");
+      } else {
+        setSubmitError(err.message || "שגיאה בשמירת החתימה");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -70,6 +77,24 @@ const PublicConsentForm = () => {
           <div className="text-blue-600 text-xl font-bold animate-pulse">
             טוען טופס...
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🆕 תוקף קישור חד-פעמי פג (7 ימים) - מסך הודעה ברור במקום הטופס
+  if (isExpired) {
+    return (
+      <div
+        className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4"
+        dir="rtl"
+      >
+        <div className="bg-white rounded-3xl shadow-lg p-10 max-w-md w-full text-center">
+          <span className="text-6xl mb-4 block">🕐</span>
+          <h1 className="text-2xl font-bold text-gray-800 mb-3">
+            תוקף הקישור פג
+          </h1>
+          <p className="text-gray-600">{error}</p>
         </div>
       </div>
     );

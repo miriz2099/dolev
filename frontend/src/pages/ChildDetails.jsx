@@ -1523,6 +1523,8 @@ const ChildDetails = () => {
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
   const [isInviteSecondParentOpen, setIsInviteSecondParentOpen] =
     useState(false);
+  // 🆕 "ההורים אינם גרושים" - השלמת טופס ההסכמה בלי הורה שני
+  const [markingNoSecondParent, setMarkingNoSecondParent] = useState(false);
 
   // 🔴 חישוב תקין של "יש הודעות חדשות" - רק הודעות שאני הנמען שלהן
   const hasUnreadMessages = messages.some(
@@ -1574,7 +1576,7 @@ const ChildDetails = () => {
     if (currentUser && childId) fetchStatus();
   }, [fetchStatus, currentUser, childId]);
 
-  usePageTitle(childFullName(childData) || "פרטי הילד/ה");
+  usePageTitle(childData?.firstName || "פרטי הילד/ה");
 
   // 🆕 שליפת כל ילדי ההורה (לצורך מתג מעבר בין אחים/אחיות, אם יש יותר מילד/ה אחד/ת)
   useEffect(() => {
@@ -1639,6 +1641,28 @@ const ChildDetails = () => {
     };
     markAsRead();
   }, [activeTab, childId, currentUser, hasUnreadMessages]);
+
+  // 🆕 "ההורים אינם גרושים" - משלימה את טופס ההסכמה בלי הורה שני
+  const handleMarkNoSecondParent = async () => {
+    if (
+      !window.confirm(
+        "לאשר שההורים אינם גרושים ושלא נדרשת חתימת הורה נוסף? אם נשלח קישור להורה השני, הוא יבוטל.",
+      )
+    ) {
+      return;
+    }
+    try {
+      setMarkingNoSecondParent(true);
+      const token = await currentUser.getIdToken();
+      await consentFormService.noSecondParentRequired(consentForm.id, token);
+      await fetchStatus();
+    } catch (err) {
+      console.error("Error marking no second parent:", err);
+      alert(err.message || "שגיאה בעדכון הטופס");
+    } finally {
+      setMarkingNoSecondParent(false);
+    }
+  };
 
   const handleSendToSchool = async () => {
     if (!teacherEmail || !teacherName) {
@@ -1918,10 +1942,12 @@ const ChildDetails = () => {
                       <p className="text-gray-500 text-sm">
                         {isRegisteredSigned
                           ? formStatus === "fully_signed"
-                            ? "הטופס נחתם במלואו ע״י שני ההורים."
+                            ? consentForm.secondParentNotRequired
+                              ? "✅ טופס ההסכמה הושלם"
+                              : "הטופס נחתם במלואו ע״י שני ההורים."
                             : hasInvitedSecond
                               ? `נשלח ל-${externalParent.name} (ממתין לחתימה)`
-                              : "חתמת על הטופס. במקרה של הורים גרושים, ניתן לשלוח להורה השני."
+                              : "חתמת על הטופס. במקרה של הורים גרושים יש לשלוח את הטופס להורה השני. אחרת, סמנו שההורים אינם גרושים."
                           : "אישור הורים לעריכת האבחון הפסיכולוגי."}
                       </p>
 
@@ -1949,6 +1975,19 @@ const ChildDetails = () => {
                           {hasInvitedSecond
                             ? "🔄 שלח שוב להורה השני"
                             : "📨 שלח להורה השני"}
+                        </button>
+                      )}
+
+                      {/* 🆕 "ההורים אינם גרושים" - משלימה את הטופס בלי הורה שני */}
+                      {isRegisteredSigned && !isSecondSigned && (
+                        <button
+                          onClick={handleMarkNoSecondParent}
+                          disabled={markingNoSecondParent}
+                          className="w-full py-3 rounded-xl font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+                        >
+                          {markingNoSecondParent
+                            ? "מעדכן..."
+                            : "✓ ההורים אינם גרושים – אין צורך בחתימה נוספת"}
                         </button>
                       )}
 

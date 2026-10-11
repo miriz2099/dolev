@@ -59,8 +59,10 @@ const fetchWithAuth = async (url, options = {}) => {
   const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "שגיאה בתקשורת עם השרת");
+    const errorData = await response.json().catch(() => ({}));
+    const error = new Error(errorData.error || "שגיאה בתקשורת עם השרת");
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();

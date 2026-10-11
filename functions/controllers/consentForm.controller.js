@@ -9,6 +9,39 @@ const { isValidSignatureImage } = require("../helpers/signature.helper");
 // ============================================
 // 🚨 הערה: ה-credentials כאן מגיעים מ-process.env (ממליץ להעביר את כל המייל ל-.env)
 // אם עדיין לא עברת - נסה לטעון מ-.env, אם לא קיים - fallback לערכים הקיימים
+// 🆕 תוקף של 7 ימים לקישור ההורה השני - הזמנות ישנות בלי inviteExpiresAt לא נחסמות
+const isConsentInviteExpired = (parentRecord) =>
+  !!parentRecord?.inviteExpiresAt &&
+  new Date(parentRecord.inviteExpiresAt) < new Date();
+
+const EXPIRED_CONSENT_LINK_ERROR =
+  "תוקף הקישור פג. יש לבקש מההורה הרשום לשלוח קישור חדש.";
+
+// 🆕 תופעות לוואי משותפות לכל נקודת מעבר בסטטוס טופס ההסכמה (חתימת הורה
+// רשום/חתימת הורה חיצוני/סימון "אינם גרושים"): עדכון consentFormStatus
+// על ה-diagnosis, והודעה אוטומטית למאבחן כשהטופס הושלם במלואו.
+const applyConsentStatusSideEffects = (formData, newStatus, senderId, batch) => {
+  if (formData.diagnosisId) {
+    const diagRef = db.collection("diagnoses").doc(formData.diagnosisId);
+    batch.update(diagRef, {
+      consentFormStatus: newStatus,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  if (newStatus === "fully_signed" && formData.therapistId) {
+    const msgRef = db.collection("messages").doc();
+    batch.set(msgRef, {
+      senderId,
+      receiverId: formData.therapistId,
+      childId: formData.childId,
+      text: `שלום, טופס ההסכמה לאבחון של ${formData.childInfo.fullName} הושלם וחתום ע"י שני ההורים.`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
+  }
+};
+
 const createMailTransporter = () => {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -206,27 +239,8 @@ const signByRegisteredParent = async (req, res) => {
       updatedAt: new Date().toISOString(),
     });
 
-    // 2. עדכון הסטטוס ב-diagnosis
-    if (formData.diagnosisId) {
-      const diagRef = db.collection("diagnoses").doc(formData.diagnosisId);
-      batch.update(diagRef, {
-        consentFormStatus: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    // 3. אם הטופס הושלם במלואו - הודעה אוטומטית למאבחן
-    if (newStatus === "fully_signed") {
-      const msgRef = db.collection("messages").doc();
-      batch.set(msgRef, {
-        senderId: userId,
-        receiverId: formData.therapistId,
-        childId: formData.childId,
-        text: `שלום, טופס ההסכמה לאבחון של ${formData.childInfo.fullName} הושלם וחתום ע"י שני ההורים.`,
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
+    // 2+3. עדכון consentFormStatus ב-diagnosis + הודעה למאבחן אם הושלם במלואו
+    applyConsentStatusSideEffects(formData, newStatus, userId, batch);
 
     await batch.commit();
 
@@ -311,6 +325,8 @@ const inviteSecondParent = async (req, res) => {
     // יצירת token חדש (גם אם זו שליחה חוזרת)
     const inviteToken = crypto.randomBytes(32).toString("hex");
     const now = new Date().toISOString();
+    const inviteExpiresAt = new Date();
+    inviteExpiresAt.setDate(inviteExpiresAt.getDate() + 7);
 
     // בניית ה-parents array המעודכן
     const updatedParents = parents.filter((p) => p.role !== "external");
@@ -323,6 +339,7 @@ const inviteSecondParent = async (req, res) => {
       signature: null,
       inviteToken,
       inviteSentAt: now,
+      inviteExpiresAt: inviteExpiresAt.toISOString(),
     });
 
     // שליחת המייל
@@ -439,6 +456,10 @@ const getConsentFormByToken = async (req, res) => {
       });
     }
 
+    if (isConsentInviteExpired(externalParent)) {
+      return res.status(410).json({ error: EXPIRED_CONSENT_LINK_ERROR });
+    }
+
     // החזרת מידע מינימלי - לא חושפים פרטים פרטיים
     res.status(200).json({
       alreadySigned: false,
@@ -510,6 +531,10 @@ const signByExternalParent = async (req, res) => {
       return res.status(409).json({ error: "כבר חתמת על הטופס" });
     }
 
+    if (isConsentInviteExpired(parents[externalIdx])) {
+      return res.status(410).json({ error: EXPIRED_CONSENT_LINK_ERROR });
+    }
+
     // עדכון רשומת ההורה השני
     const updatedParents = [...parents];
     updatedParents[externalIdx] = {
@@ -536,27 +561,14 @@ const signByExternalParent = async (req, res) => {
       updatedAt: new Date().toISOString(),
     });
 
-    // עדכון הסטטוס ב-diagnosis
-    if (formData.diagnosisId) {
-      const diagRef = db.collection("diagnoses").doc(formData.diagnosisId);
-      batch.update(diagRef, {
-        consentFormStatus: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    // הודעה אוטומטית למאבחן (אם הטופס הושלם)
-    if (newStatus === "fully_signed") {
-      const msgRef = db.collection("messages").doc();
-      batch.set(msgRef, {
-        senderId: formData.registeredParentId, // נשלח בשם ההורה הרשום
-        receiverId: formData.therapistId,
-        childId: formData.childId,
-        text: `שלום, טופס ההסכמה לאבחון של ${formData.childInfo.fullName} הושלם וחתום ע"י שני ההורים.`,
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
+    // עדכון consentFormStatus ב-diagnosis + הודעה למאבחן אם הושלם במלואו
+    // (ההודעה נשלחת בשם ההורה הרשום, כמו קודם)
+    applyConsentStatusSideEffects(
+      formData,
+      newStatus,
+      formData.registeredParentId,
+      batch,
+    );
 
     await batch.commit();
 
@@ -570,6 +582,76 @@ const signByExternalParent = async (req, res) => {
   }
 };
 
+// ============================================
+// 6. "ההורים אינם גרושים" - משלימה את הטופס בלי הורה שני
+// POST /consent-forms/:formId/no-second-parent
+// ============================================
+const markNoSecondParentRequired = async (req, res) => {
+  try {
+    const { formId } = req.params;
+    const userId = req.user.uid;
+
+    const formRef = db.collection("consent_forms").doc(formId);
+    const formDoc = await formRef.get();
+    if (!formDoc.exists) {
+      return res.status(404).json({ error: "טופס ההסכמה לא נמצא" });
+    }
+
+    const formData = formDoc.data();
+
+    // אבטחה: רק ההורה הרשום של הטופס
+    if (formData.registeredParentId !== userId) {
+      return res
+        .status(403)
+        .json({ error: "אין הרשאה לבצע פעולה זו עבור טופס זה" });
+    }
+
+    const parents = formData.parents || [];
+    const registeredParent = parents.find((p) => p.role === "registered");
+    if (!registeredParent || !registeredParent.signed) {
+      return res.status(409).json({
+        error: "יש לחתום על הטופס כהורה רשום לפני סימון שאין צורך בהורה שני",
+      });
+    }
+
+    const externalParent = parents.find((p) => p.role === "external");
+    if (externalParent && externalParent.signed) {
+      return res.status(409).json({ error: "ההורה השני כבר חתם על הטופס" });
+    }
+
+    // הסרת הזמנה פתוחה (שעדיין לא נחתמה) של הורה חיצוני - ה-token שלה
+    // מפסיק לעבוד מרגע זה
+    const updatedParents = parents.filter((p) => p.role !== "external");
+
+    const newStatus = "fully_signed";
+    const now = new Date().toISOString();
+
+    const batch = db.batch();
+    batch.update(formRef, {
+      parents: updatedParents,
+      status: newStatus,
+      secondParentNotRequired: true,
+      secondParentNotRequiredAt: now,
+      secondParentNotRequiredBy: userId,
+      updatedAt: now,
+    });
+
+    // עדכון consentFormStatus ב-diagnosis + הודעה למאבחן (אותן תופעות
+    // לוואי שקורות היום במעבר ל-fully_signed)
+    applyConsentStatusSideEffects(formData, newStatus, userId, batch);
+
+    await batch.commit();
+
+    res.status(200).json({
+      message: "הטופס סומן כמושלם - אין צורך בחתימת הורה נוסף",
+      status: newStatus,
+    });
+  } catch (error) {
+    console.error("Error in markNoSecondParentRequired:", error);
+    res.status(500).json({ error: "שגיאה בעדכון הטופס" });
+  }
+};
+
 module.exports = {
   getConsentFormByDiagnosis,
   exportConsentFormPDF,
@@ -577,4 +659,5 @@ module.exports = {
   inviteSecondParent,
   getConsentFormByToken,
   signByExternalParent,
+  markNoSecondParentRequired,
 };

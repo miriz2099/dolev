@@ -7,6 +7,7 @@ const {
   inviteSecondParent,
   getConsentFormByToken,
   signByExternalParent,
+  markNoSecondParentRequired,
 } = require("../controllers/consentForm.controller");
 const { verifyToken } = require("../middleware/auth.middleware");
 const { publicRouteLimiter } = require("../middleware/rateLimiter.middleware");
@@ -20,6 +21,11 @@ router.get(
 );
 router.post("/:formId/sign-registered", verifyToken, signByRegisteredParent);
 router.post("/:formId/invite-second-parent", verifyToken, inviteSecondParent);
+router.post(
+  "/:formId/no-second-parent",
+  verifyToken,
+  markNoSecondParentRequired,
+);
 
 // === 🆕 Routes ציבוריים (להורה השני - דרך לינק במייל) ===
 // ⚠️ אין verifyToken כאן - האימות הוא דרך ה-token שבלינק עצמו

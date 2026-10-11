@@ -2868,6 +2868,17 @@ const bookAssessmentAppointment = async (req, res) => {
       return res.status(404).json({ error: "האבחון לא נמצא" });
     }
     const diagData = diagDoc.data();
+
+    // 🆕 תור נקבע רק לאחר שהאבחון פתוח וטופס ההסכמה נחתם במלואו
+    if (diagData.closed) {
+      return res.status(409).json({ error: "האבחון סגור" });
+    }
+    if (diagData.consentFormStatus !== "fully_signed") {
+      return res
+        .status(409)
+        .json({ error: "יש להשלים את חתימת טופס ההסכמה לפני קביעת תור" });
+    }
+
     const childId = diagData.childId;
 
     const childDoc = await db.collection("children").doc(childId).get();

@@ -258,6 +258,15 @@ const ConsentFormViewer = ({ isOpen, onClose, consentForm }) => {
               label="הורה שני (הוזמן ע״י המייל)"
               accentColor="purple"
             />
+          ) : consentForm.secondParentNotRequired ? (
+            <div className="bg-green-50 border border-green-100 rounded-2xl p-5 text-sm text-green-800">
+              ✓ לא נדרשה חתימת הורה נוסף (ההורים אינם גרושים), לפי הצהרת
+              ההורה הרשום
+              <br />
+              <span className="text-xs text-green-600">
+                {formatDateOnly(consentForm.secondParentNotRequiredAt)}
+              </span>
+            </div>
           ) : (
             <div className="bg-gray-50 border border-dashed border-gray-300 rounded-2xl p-5 text-center text-gray-500 text-sm">
               💡 לא הוזמן הורה שני לטופס זה.

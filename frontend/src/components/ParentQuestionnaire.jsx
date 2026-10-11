@@ -438,7 +438,21 @@ const ParentQuestionnaire = ({
                     },
                   ]
                 : [{ type: "", date: "", recommendations: "" }];
-          setFormData({ ...loaded, assessments });
+          // 🆕 תאימות לשאלונים ישנים: אם יש פירוט בלי שדה כן/לא, מציגים
+          // כאילו נבחר "כן" כדי שהפירוט הקיים לא "ייעלם" מהתצוגה
+          const loadedCurrentProblems = loaded.currentProblems;
+          const migratedCurrentProblems =
+            loadedCurrentProblems &&
+            !loadedCurrentProblems.foodSleepFears &&
+            loadedCurrentProblems.foodSleepFearsDetails
+              ? { ...loadedCurrentProblems, foodSleepFears: "כן" }
+              : loadedCurrentProblems;
+
+          setFormData({
+            ...loaded,
+            assessments,
+            currentProblems: migratedCurrentProblems,
+          });
           if (data.step) setStep(data.step);
           setSaveStatus("טיוטה נטענה");
         }
@@ -523,6 +537,17 @@ const ParentQuestionnaire = ({
     setFormData((prev) => ({
       ...prev,
       [section]: { ...prev[section], [field]: value },
+    }));
+
+  // 🆕 מעבר מ"כן" ל"לא" מנקה את הפירוט, כדי שלא יישמר פירוט ישן בלי שייראה
+  const handleFoodSleepFearsChange = (value) =>
+    setFormData((prev) => ({
+      ...prev,
+      currentProblems: {
+        ...prev.currentProblems,
+        foodSleepFears: value,
+        ...(value === "לא" ? { foodSleepFearsDetails: "" } : {}),
+      },
     }));
 
   const handleSchoolHistory = (index, field, value) => {
@@ -1617,18 +1642,72 @@ const ParentQuestionnaire = ({
         return (
           <div className="space-y-5">
             <SectionTitle>הילד/ה היום</SectionTitle>
-            <SubTitle>
-              האם יש כיום בעיות סביב אוכל / שינה / פחדי לילה / חרדות אחרות /
-              אחר? *
-            </SubTitle>
-            <TextAreaField
-              label="אם כן, פרט/י:"
-              value={formData.currentProblems.foodSleepFearsDetails}
-              onChange={(v) =>
-                handleNested("currentProblems", "foodSleepFearsDetails", v)
+
+            <div
+              className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3"
+              data-missing={
+                isMissing("currentProblems.foodSleepFears") ? "true" : undefined
               }
-              error={isMissing("currentProblems.foodSleepFearsDetails")}
-            />
+            >
+              <p
+                className={`font-bold text-sm ${isMissing("currentProblems.foodSleepFears") ? "text-red-700" : "text-gray-700"}`}
+              >
+                האם יש כיום בעיות סביב אוכל / שינה / פחדי לילה / חרדות אחרות /
+                אחר? *
+              </p>
+              {isMissing("currentProblems.foodSleepFears") && (
+                <span className="text-xs text-red-600">שדה חובה</span>
+              )}
+
+              {/* בחירת כן/לא */}
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="foodSleepFears"
+                    value="כן"
+                    checked={formData.currentProblems.foodSleepFears === "כן"}
+                    onChange={(e) =>
+                      handleFoodSleepFearsChange(e.target.value)
+                    }
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span>כן</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="foodSleepFears"
+                    value="לא"
+                    checked={formData.currentProblems.foodSleepFears === "לא"}
+                    onChange={(e) =>
+                      handleFoodSleepFearsChange(e.target.value)
+                    }
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span>לא</span>
+                </label>
+              </div>
+
+              {/* הצגת הפירוט רק אם סומן "כן" */}
+              {formData.currentProblems.foodSleepFears === "כן" && (
+                <div className="space-y-4 border-t pt-4 animate-in fade-in duration-500">
+                  <TextAreaField
+                    label="אם כן, פרט/י:"
+                    value={formData.currentProblems.foodSleepFearsDetails}
+                    onChange={(v) =>
+                      handleNested(
+                        "currentProblems",
+                        "foodSleepFearsDetails",
+                        v,
+                      )
+                    }
+                    error={isMissing("currentProblems.foodSleepFearsDetails")}
+                  />
+                </div>
+              )}
+            </div>
+
             <SubTitle>במסגרת הבית:</SubTitle>
             <div className="space-y-3">
               <InputField
@@ -1953,7 +2032,12 @@ const ParentQuestionnaire = ({
     // --- שלב 8: הילד/ה היום ---
     currentStep = 8;
     const curr = formData.currentProblems;
-    if (!curr.foodSleepFearsDetails)
+    if (!curr.foodSleepFears)
+      add(
+        "בעיות סביב אוכל/שינה/פחדים (כן/לא)",
+        "currentProblems.foodSleepFears",
+      );
+    if (curr.foodSleepFears === "כן" && !curr.foodSleepFearsDetails)
       add(
         "פירוט בעיות סביב אוכל/שינה/פחדים",
         "currentProblems.foodSleepFearsDetails",

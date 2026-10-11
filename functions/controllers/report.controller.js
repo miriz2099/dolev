@@ -945,6 +945,7 @@ const exportReportToPDF = async (req, res) => {
   try {
     // משנים את שם המשתנה ל-diagnosisId
     const { reportId: diagnosisId } = req.params;
+    const uid = req.user.uid;
 
     // מחפשים את הדוח שמקושר ל-diagnosisId הזה
     const snapshot = await db
@@ -960,22 +961,35 @@ const exportReportToPDF = async (req, res) => {
     const reportDoc = snapshot.docs[0];
     const reportData = reportDoc.data();
 
-    // Security Check - אדמין, המאבחן/ת הבעלים, או ההורה (רק אם הדוח כבר הוגש)
-    const isAdmin = req.user.role === "admin";
-    const isOwnerTherapist = reportData.therapistId === req.user.uid;
+    // 🆕 isAdmin מחושב מ-users/{uid}.role - בטוקן (req.user) אין role, כמו בשאר הקוד
+    const userDoc = await db.collection("users").doc(uid).get();
+    const userRole = userDoc.exists ? userDoc.data().role : null;
+    const isAdmin = userRole === "admin";
+    const isOwnerTherapist = reportData.therapistId === uid;
 
-    let isParentAllowed = false;
-    if (!isAdmin && !isOwnerTherapist && reportData.status === "completed") {
-      const childDoc = await db.collection("children").doc(reportData.childId).get();
-      if (childDoc.exists && childDoc.data().parentId === req.user.uid) {
-        isParentAllowed = true;
+    // Security Check - אדמין, המאבחן/ת הבעלים, או ההורה - וההורה מורשה
+    // רק אם הדוח הוגש (completed) וגם האבחון נסגר רשמית (closed)
+    if (!isAdmin && !isOwnerTherapist) {
+      const childDoc = await db
+        .collection("children")
+        .doc(reportData.childId)
+        .get();
+      const isParent = childDoc.exists && childDoc.data().parentId === uid;
+
+      if (!isParent) {
+        return res
+          .status(403)
+          .json({ error: "Unauthorized to export this report" });
       }
-    }
 
-    if (!isAdmin && !isOwnerTherapist && !isParentAllowed) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized to export this report" });
+      const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+      const isClosed = diagDoc.exists && diagDoc.data().closed === true;
+
+      if (reportData.status !== "completed" || !isClosed) {
+        return res
+          .status(403)
+          .json({ error: "הדוח יהיה זמין להורדה לאחר סגירת האבחון" });
+      }
     }
 
     // שולחים לשירות ה-PDF את ה-formData שנמצא בתוך ה-reportData

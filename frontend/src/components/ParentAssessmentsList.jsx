@@ -16,6 +16,9 @@ const ParentAssessmentsList = ({ diagnosis, onChange }) => {
   const [cancellingId, setCancellingId] = useState(null);
 
   const assessments = diagnosis?.requiredAssessments || [];
+  // 🆕 קביעת תור אפשרית רק אחרי שטופס ההסכמה נחתם במלואו (ראה גם הבדיקה
+  // המקבילה בשרת, bookAssessmentAppointment)
+  const consentFullySigned = diagnosis?.consentFormStatus === "fully_signed";
 
   const handleOpenPicker = (assessment) => {
     setSelectedAssessment(assessment);
@@ -112,6 +115,14 @@ const ParentAssessmentsList = ({ diagnosis, onChange }) => {
         </div>
       </div>
 
+      {/* 🆕 הודעה - קביעת תור חסומה עד לחתימה מלאה על טופס ההסכמה */}
+      {!consentFullySigned && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl p-4">
+          ⏳ ניתן יהיה לקבוע מועדים לאחר השלמת חתימת טופס ההסכמה (לשונית
+          "אישורים וטפסים").
+        </div>
+      )}
+
       {/* רשימת אבחונים */}
       <div className="space-y-4">
         {assessments.map((asm) => (
@@ -121,6 +132,7 @@ const ParentAssessmentsList = ({ diagnosis, onChange }) => {
             onSchedule={() => handleOpenPicker(asm)}
             onCancel={() => handleCancel(asm)}
             isCancelling={cancellingId === asm.id}
+            canSchedule={consentFullySigned}
           />
         ))}
       </div>
@@ -138,7 +150,13 @@ const ParentAssessmentsList = ({ diagnosis, onChange }) => {
 };
 
 // תת-קומפוננטה לכרטיס אבחון יחיד
-const AssessmentCard = ({ assessment, onSchedule, onCancel, isCancelling }) => {
+const AssessmentCard = ({
+  assessment,
+  onSchedule,
+  onCancel,
+  isCancelling,
+  canSchedule = true,
+}) => {
   const isPending = assessment.status === "pending";
   const isScheduled = assessment.status === "scheduled";
   const isCompleted = assessment.status === "completed";
@@ -228,7 +246,13 @@ const AssessmentCard = ({ assessment, onSchedule, onCancel, isCancelling }) => {
           {isPending && (
             <button
               onClick={onSchedule}
-              className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md text-sm"
+              disabled={!canSchedule}
+              title={
+                !canSchedule
+                  ? "יש להשלים את חתימת טופס ההסכמה לפני קביעת תור"
+                  : undefined
+              }
+              className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               📅 קבעו תור
             </button>

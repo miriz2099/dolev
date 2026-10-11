@@ -12,7 +12,9 @@ const fetchWithAuth = async (url, token, options = {}) => {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Server Error");
+    const error = new Error(errorData.error || "Server Error");
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 };
@@ -73,7 +75,9 @@ const consentFormService = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "שגיאה בטעינת הטופס");
+      const error = new Error(errorData.error || "שגיאה בטעינת הטופס");
+      error.status = response.status;
+      throw error;
     }
     return response.json();
   },
@@ -90,9 +94,20 @@ const consentFormService = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "שגיאה בשמירת החתימה");
+      const error = new Error(errorData.error || "שגיאה בשמירת החתימה");
+      error.status = response.status;
+      throw error;
     }
     return response.json();
+  },
+
+  // 🆕 "ההורים אינם גרושים" - משלימה את הטופס בלי הורה שני
+  noSecondParentRequired: async (formId, token) => {
+    return await fetchWithAuth(
+      `${BASE_URL}/consent-forms/${formId}/no-second-parent`,
+      token,
+      { method: "POST" },
+    );
   },
 };
 

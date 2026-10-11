@@ -1200,7 +1200,17 @@ const DiagnosisDetails = () => {
     useState(false);
   const [creatingDiagnosis, setCreatingDiagnosis] = useState(false);
 
-  usePageTitle(childFullName(childData) || "פרטי מטופל");
+  // 🆕 כותרת לשונית - שם פרטי בלבד (פרטיות: אף פעם לא שם משפחה/ת"ז/שם הורה),
+  // עם הקשר קצר כשנמצאים בתוך אבחון/דוח פתוח
+  usePageTitle(
+    childData?.firstName
+      ? selectedDiagnosis && activeTab === "reports"
+        ? `${childData.firstName} · דוח`
+        : selectedDiagnosis && activeTab === "diagnoses"
+          ? `${childData.firstName} · אבחון`
+          : childData.firstName
+      : "פרטי מטופל",
+  );
 
   // 🆕 הקשר ניווט ל-Slider: על איזה ילד מדובר, ומאיזה פריט תפריט הגענו
   useEffect(() => {

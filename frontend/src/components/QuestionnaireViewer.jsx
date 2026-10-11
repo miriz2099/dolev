@@ -1187,7 +1187,16 @@ const QuestionnaireViewer = ({ data }) => {
       <RenderSection title="התנהגות ותפקוד בבית">
         <AnswerBox
           label="בעיות אוכל/שינה/פחדים"
-          value={formData.currentProblems?.foodSleepFearsDetails}
+          value={(() => {
+            const cp = formData.currentProblems || {};
+            // תאימות לשאלונים ישנים בלי foodSleepFears: אם יש פירוט, מציגים כ"כן"
+            const answer =
+              cp.foodSleepFears || (cp.foodSleepFearsDetails ? "כן" : "");
+            if (!answer) return "";
+            return answer === "כן" && cp.foodSleepFearsDetails
+              ? `${answer} - ${cp.foodSleepFearsDetails}`
+              : answer;
+          })()}
           wide
         />
         <AnswerBox

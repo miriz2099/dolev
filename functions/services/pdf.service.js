@@ -2824,10 +2824,15 @@ const generateParentQuestionnaireHTML = (doc) => {
   html += `</table>`;
 
   html += `<h2>התנהגות ותפקוד בבית</h2><table class="info-table">`;
-  html += infoRow(
-    "בעיות אוכל/שינה/פחדים",
-    f.currentProblems?.foodSleepFearsDetails,
-  );
+  // תאימות לשאלונים ישנים בלי foodSleepFears: אם יש פירוט, מציגים כ"כן"
+  const foodSleepFearsAnswer =
+    f.currentProblems?.foodSleepFears ||
+    (f.currentProblems?.foodSleepFearsDetails ? "כן" : "");
+  const foodSleepFearsValue =
+    foodSleepFearsAnswer === "כן" && f.currentProblems?.foodSleepFearsDetails
+      ? `${foodSleepFearsAnswer} - ${f.currentProblems.foodSleepFearsDetails}`
+      : foodSleepFearsAnswer;
+  html += infoRow("בעיות אוכל/שינה/פחדים", foodSleepFearsValue);
   html += infoRow("חוסר מנוחה/פעילות יתר", f.currentProblems?.restlessness);
   html += infoRow("מתרגש בקלות", f.currentProblems?.excitedEasily);
   html += infoRow("מפריע לאחרים", f.currentProblems?.disturbsOthers);

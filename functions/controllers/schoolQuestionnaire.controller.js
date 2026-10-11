@@ -28,6 +28,14 @@ const getDiagnosisAccess = async (uid, diagnosisId) => {
   return { ok: true, diagnosis };
 };
 
+// 🆕 תוקף של 7 ימים לקישורים החד-פעמיים - הזמנות ישנות בלי expiryDate לא נחסמות
+const isInvitationExpired = (invitationData) =>
+  !!invitationData?.expiryDate &&
+  new Date(invitationData.expiryDate) < new Date();
+
+const EXPIRED_LINK_ERROR =
+  "תוקף הקישור פג. יש לבקש קישור חדש מההורים או מהמאבחנת.";
+
 const createSchoolInvitation = async (req, res) => {
   try {
     const { childId, diagnosisId, teacherEmail, teacherName } = req.body;
@@ -147,6 +155,11 @@ const checkInvitation = async (req, res) => {
     if (snapshot.empty) return res.status(404).json({ error: "קישור לא תקין" });
 
     const invitationData = snapshot.docs[0].data();
+
+    if (isInvitationExpired(invitationData)) {
+      return res.status(410).json({ error: EXPIRED_LINK_ERROR });
+    }
+
     const childId = invitationData.childId;
     const diagnosisId = invitationData.diagnosisId;
 
@@ -213,6 +226,10 @@ const submitSchoolSurvey = async (req, res) => {
     const invitationDoc = snapshot.docs[0];
     const invitationData = invitationDoc.data();
 
+    if (isInvitationExpired(invitationData)) {
+      return res.status(410).json({ error: EXPIRED_LINK_ERROR });
+    }
+
     // 2. ניקוי ה-formData מערכי undefined (למקרה שהמורה השאיר שדות ריקים)
     const cleanFormData = JSON.parse(
       JSON.stringify(formData, (k, v) => (v === undefined ? null : v)),
@@ -266,6 +283,10 @@ const saveSchoolDraft = async (req, res) => {
       return res.status(404).json({ error: "הזמנה לא נמצאה" });
 
     const invitationDoc = snapshot.docs[0];
+
+    if (isInvitationExpired(invitationDoc.data())) {
+      return res.status(410).json({ error: EXPIRED_LINK_ERROR });
+    }
 
     // שמירת הטיוטה בתוך מסמך ההזמנה או בקולקשיין נפרד
     await invitationDoc.ref.update({
