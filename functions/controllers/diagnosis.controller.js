@@ -2496,8 +2496,8 @@ const getParentQuestionnaireAnswers = async (req, res) => {
 };
 
 // GET /diagnoses/:diagnosisId/parent-answers/export
-// ייצוא שאלון ההורים ל-PDF - מוגבל למאבחן בעל האבחון או אדמין בלבד
-// (בניגוד ל-getParentQuestionnaireAnswers שמאפשר גם להורה לצפות).
+// ייצוא שאלון ההורים ל-PDF - מאבחן בעל האבחון/אדמין (ללא הגבלה), או ההורה
+// של הילד (רק אחרי שהשאלון הוגש בפועל - ראה הבדיקה למטה).
 const exportParentQuestionnairePDF = async (req, res) => {
   try {
     const { diagnosisId } = req.params;
@@ -2511,9 +2511,8 @@ const exportParentQuestionnairePDF = async (req, res) => {
 
     const userDoc = await db.collection("users").doc(uid).get();
     const role = userDoc.exists ? userDoc.data().role : null;
-    if (role !== "admin" && diagnosis.therapistId !== uid) {
-      return res.status(403).json({ error: "אין הרשאה לייצא שאלון זה" });
-    }
+    const isAdmin = role === "admin";
+    const isOwnerTherapist = diagnosis.therapistId === uid;
 
     const snapshot = await db
       .collection("parent_questionnaires")
@@ -2521,6 +2520,27 @@ const exportParentQuestionnairePDF = async (req, res) => {
       .orderBy("submittedAt", "desc")
       .limit(1)
       .get();
+
+    if (!isAdmin && !isOwnerTherapist) {
+      // 🆕 לא אדמין/מאבחן - מורשה רק אם זה הורה הילד, וגם רק אחרי שהשאלון הוגש
+      const childDoc = await db
+        .collection("children")
+        .doc(diagnosis.childId)
+        .get();
+      const isParent = childDoc.exists && childDoc.data().parentId === uid;
+
+      if (!isParent) {
+        return res.status(403).json({ error: "אין הרשאה לייצא שאלון זה" });
+      }
+
+      const submitted =
+        diagnosis.parentQuestionnaireStatus === "נשלח" || !snapshot.empty;
+      if (!submitted) {
+        return res
+          .status(403)
+          .json({ error: "אפשר להוריד את השאלון לאחר הגשתו" });
+      }
+    }
 
     if (snapshot.empty) {
       return res

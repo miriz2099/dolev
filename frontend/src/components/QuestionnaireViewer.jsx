@@ -818,7 +818,7 @@ const AttachedFiles = ({ files }) => {
 // קומפוננטה ראשית
 // ============================================
 
-const QuestionnaireViewer = ({ data }) => {
+const QuestionnaireViewer = ({ data, showOwnExportButton = true }) => {
   const { currentUser } = useAuth();
   const [exporting, setExporting] = useState(false);
 
@@ -873,16 +873,18 @@ const QuestionnaireViewer = ({ data }) => {
       className="bg-white p-8 rounded-3xl animate-fadeIn font-sans shadow-lg"
       dir="rtl"
     >
-      <div className="flex justify-end mb-4">
-        <button
-          type="button"
-          onClick={handleExportPDF}
-          disabled={exporting}
-          className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50"
-        >
-          {exporting ? "מייצא..." : "📄 יצוא ל-PDF"}
-        </button>
-      </div>
+      {showOwnExportButton && (
+        <div className="flex justify-end mb-4">
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            disabled={exporting}
+            className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50"
+          >
+            {exporting ? "מייצא..." : "📄 יצוא ל-PDF"}
+          </button>
+        </div>
+      )}
       {/* 1. פרטים אישיים */}
       <RenderSection title="פרטים אישיים">
         <AnswerBox

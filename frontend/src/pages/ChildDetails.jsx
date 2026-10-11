@@ -1480,8 +1480,10 @@ import consentFormService from "../services/consentForm.service";
 import reportService from "../services/report.service";
 import Breadcrumbs from "../components/Breadcrumbs";
 import ChildContextCard from "../components/ChildContextCard";
+import QuestionnaireViewer from "../components/QuestionnaireViewer";
 import { childFullName } from "../utils/childDisplay";
 import { diagnosisLabel } from "../utils/diagnosisDisplay";
+import { formatDate } from "../utils/dateFormat";
 import usePageTitle from "../hooks/usePageTitle";
 
 const ChildDetails = () => {
@@ -1495,6 +1497,15 @@ const ChildDetails = () => {
   const [allDiagnoses, setAllDiagnoses] = useState([]);
   // 🆕 התקדמות בשאלון ההורים בזמן מילוי (לסרגל הקשר הדביק)
   const [questionnaireStepInfo, setQuestionnaireStepInfo] = useState(null);
+
+  // 🆕 צפייה בשאלון ההורים שהוגש (קריאה בלבד)
+  const [showQuestionnaireView, setShowQuestionnaireView] = useState(false);
+  const [viewedQuestionnaire, setViewedQuestionnaire] = useState(null);
+  const [viewQuestionnaireLoading, setViewQuestionnaireLoading] =
+    useState(false);
+  const [viewQuestionnaireError, setViewQuestionnaireError] = useState("");
+  const [exportingQuestionnairePDF, setExportingQuestionnairePDF] =
+    useState(false);
 
   const [childData, setChildData] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -1717,6 +1728,50 @@ const ChildDetails = () => {
   };
 
   // 🆕 הורדת דוח PDF - אותה שיטה בדיוק כמו ב-ReportForm.jsx (יצירת לינק זמני מה-Blob)
+  // 🆕 פתיחת תצוגת קריאה בלבד של השאלון שההורה הגיש (ולטעינתו)
+  const handleViewQuestionnaire = async () => {
+    setShowQuestionnaireView(true);
+    setViewQuestionnaireError("");
+    setViewedQuestionnaire(null);
+    setViewQuestionnaireLoading(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const data = await therapistService.getParentAnswers(
+        activeDiagnosis.id,
+        token,
+      );
+      setViewedQuestionnaire(data);
+    } catch (err) {
+      console.error("Error loading submitted questionnaire:", err);
+      setViewQuestionnaireError(err.message || "שגיאה בטעינת השאלון");
+    } finally {
+      setViewQuestionnaireLoading(false);
+    }
+  };
+
+  // 🆕 הורדת ה-PDF של השאלון שהוגש - אותו מנגנון שה-QuestionnaireViewer
+  // משתמש בו (therapistService.exportParentQuestionnairePDF), בלי לשכפל לוגיקה
+  const handleExportParentQuestionnairePDF = async () => {
+    try {
+      setExportingQuestionnairePDF(true);
+      const token = await currentUser.getIdToken();
+      const blob = await therapistService.exportParentQuestionnairePDF(
+        activeDiagnosis.id,
+        token,
+      );
+      const link = document.createElement("a");
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `שאלון_הורים_${childData?.firstName || "ילד"}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Error exporting parent questionnaire PDF:", err);
+      alert("שגיאה בהורדת השאלון");
+    } finally {
+      setExportingQuestionnairePDF(false);
+    }
+  };
+
   const handleDownloadReport = async () => {
     try {
       setDownloadingPDF(true);
@@ -1762,6 +1817,64 @@ const ChildDetails = () => {
             }}
             onCancel={() => setShowQuestionnaire(false)}
           />
+        </>
+      );
+    }
+
+    if (showQuestionnaireView) {
+      const submittedDate = viewedQuestionnaire?.submittedAt
+        ? formatDate(viewedQuestionnaire.submittedAt)
+        : "";
+      return (
+        <>
+          {/* 🆕 פס עליון דביק - הקשר + הורדה/חזרה */}
+          <div
+            className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-2xl shadow-sm px-5 py-3 mb-4 flex items-center justify-between flex-wrap gap-3"
+            dir="rtl"
+          >
+            <p className="text-sm text-gray-500">
+              שאלון ההורים שהגשת
+              {childData.firstName ? ` · ${childData.firstName}` : ""}
+              {submittedDate ? ` · נשלח ב-${submittedDate}` : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportParentQuestionnairePDF}
+                disabled={exportingQuestionnairePDF}
+                className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50"
+              >
+                {exportingQuestionnairePDF ? "מוריד..." : "⬇️ הורדה כ-PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQuestionnaireView(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-500 text-sm hover:bg-gray-50 transition"
+              >
+                → חזרה
+              </button>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-4">
+            זו תצוגה לקריאה בלבד. אם יש צורך לתקן פרט, כתבו למאבחנת, והיא
+            תחזיר את השאלון לתיקון.
+          </p>
+
+          {viewQuestionnaireLoading ? (
+            <div className="flex justify-center items-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            </div>
+          ) : viewQuestionnaireError ? (
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center text-red-600">
+              {viewQuestionnaireError}
+            </div>
+          ) : (
+            <QuestionnaireViewer
+              data={viewedQuestionnaire}
+              showOwnExportButton={false}
+            />
+          )}
         </>
       );
     }
@@ -1864,6 +1977,16 @@ const ChildDetails = () => {
                 >
                   {qStatus === "נשלח" ? "נשלח למאבחן" : "למילוי שאלון הורים"}
                 </button>
+
+                {/* 🆕 צפייה בשאלון שהוגש - גם ב"נשלח" וגם ב"לתיקון" (שם תמיד יש הגשה קודמת) */}
+                {(qStatus === "נשלח" || qStatus === "לתיקון") && (
+                  <button
+                    onClick={handleViewQuestionnaire}
+                    className="w-full py-3 rounded-xl font-bold border-2 border-blue-300 text-blue-700 bg-white hover:bg-blue-50 transition-all"
+                  >
+                    👁️ צפייה בשאלון שמילאתי
+                  </button>
+                )}
               </div>
 
               {/* School Questionnaire Card */}
@@ -2100,6 +2223,9 @@ const ChildDetails = () => {
       </div>
     );
 
+  // 🆕 מסך מלא (בלי טאבים/סרגל התקדמות/בורר אחים) - גם במילוי שאלון וגם בצפייה בו
+  const isFullScreenPanel = showQuestionnaire || showQuestionnaireView;
+
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
       <div className="max-w-[1600px] mx-auto">
@@ -2114,14 +2240,23 @@ const ChildDetails = () => {
                   },
                   { label: "מילוי שאלון הורים" },
                 ]
-              : [
-                  { label: "הילדים שלי", onClick: () => navigate("/all-children") },
-                  { label: childFullName(childData) || "פרטי הילד/ה" },
-                ]
+              : showQuestionnaireView
+                ? [
+                    { label: "הילדים שלי", onClick: () => navigate("/all-children") },
+                    {
+                      label: childFullName(childData) || "פרטי הילד/ה",
+                      onClick: () => setShowQuestionnaireView(false),
+                    },
+                    { label: "שאלון ההורים" },
+                  ]
+                : [
+                    { label: "הילדים שלי", onClick: () => navigate("/all-children") },
+                    { label: childFullName(childData) || "פרטי הילד/ה" },
+                  ]
           }
         />
 
-        {!showQuestionnaire && (
+        {!isFullScreenPanel && (
           <ChildContextCard
             childData={childData}
             extra={
@@ -2144,7 +2279,7 @@ const ChildDetails = () => {
       </div>
 
       <div className="max-w-[1600px] mx-auto">
-        {!showQuestionnaire && userRole === "patient" && diagnosisProgress && (
+        {!isFullScreenPanel && userRole === "patient" && diagnosisProgress && (
           <DiagnosisProgressStepper
             progress={diagnosisProgress}
             contextLabel={diagnosisLabel(activeDiagnosis, {
@@ -2153,7 +2288,7 @@ const ChildDetails = () => {
             })}
           />
         )}
-        {!showQuestionnaire && (
+        {!isFullScreenPanel && (
           <ChildTabsHeader
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -2163,13 +2298,13 @@ const ChildDetails = () => {
         )}
         <div
           className={`grid grid-cols-1 ${
-            showQuestionnaire ? "" : "lg:grid-cols-12"
+            isFullScreenPanel ? "" : "lg:grid-cols-12"
           } gap-8 items-start`}
         >
-          <div className={showQuestionnaire ? "w-full" : "lg:col-span-9"}>
+          <div className={isFullScreenPanel ? "w-full" : "lg:col-span-9"}>
             {renderContent()}
           </div>
-          {!showQuestionnaire && (
+          {!isFullScreenPanel && (
             <div className="lg:col-span-3">
               <ContactTherapist
                 therapistName={childData?.therapistName || "המרכז"}
