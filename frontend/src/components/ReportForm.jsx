@@ -888,7 +888,7 @@ const SectionNav = ({ sections, activeSection, onSelect }) => (
 
 // ======================== Main Component ========================
 
-const ReportForm = ({ diagnosisId, childData, onClose }) => {
+const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
   const { currentUser } = useAuth();
   const [formData, setFormData] = useState({});
   const [status, setStatus] = useState("new"); // new | draft | in_progress | completed
@@ -1246,6 +1246,29 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
   // "חדש" רק אם אין דוח כלל; כל סטטוס אחר שאינו completed הוא טיוטה פתוחה
   const isNew = status === "new";
 
+  // 🆕 התמצאות: באיזה סעיף נמצאים, וכמה סעיפים כבר מולאו - לסרגל ההקשר הדביק
+  const activeSectionIndex = REPORT_STRUCTURE.findIndex(
+    (s) => s.id === activeSection,
+  );
+  const hasContent = (value) => {
+    if (value == null) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    if (Array.isArray(value)) return value.some((v) => hasContent(v));
+    if (typeof value === "object") return Object.values(value).some(hasContent);
+    return !!value;
+  };
+  const filledSectionsCount = REPORT_STRUCTURE.filter((section) =>
+    hasContent(formData[section.id]),
+  ).length;
+
+  const childNamePart = childData
+    ? `${childData.firstName || ""} ${childData.lastName || ""}`.trim()
+    : "";
+  const contextLineParts = [
+    childNamePart ? `מטופל/ת: ${childNamePart}` : null,
+    diagnosisLabel || null,
+  ].filter(Boolean);
+
   return (
     <div className="flex gap-6" dir="rtl">
       {/* ניווט צדדי */}
@@ -1257,6 +1280,61 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
 
       {/* גוף הטופס */}
       <div className="flex-1 max-w-4xl">
+        {/* 🆕 סרגל הקשר דביק - על איזה מטופל/אבחון מדובר, איפה נמצאים בטופס,
+            ופעולות השמירה/הגשה - נשאר גלוי תוך גלילה בטופס הארוך */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-xl shadow p-4 mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            {contextLineParts.length > 0 && (
+              <p className="font-bold text-blue-900">
+                {contextLineParts.join(" · ")}
+              </p>
+            )}
+            <p className="text-xs text-gray-400 mt-0.5">
+              סעיף {activeSectionIndex + 1} מתוך {REPORT_STRUCTURE.length}
+              {REPORT_STRUCTURE[activeSectionIndex]?.title
+                ? `: ${REPORT_STRUCTURE[activeSectionIndex].title}`
+                : ""}
+              {" · "}
+              {filledSectionsCount}/{REPORT_STRUCTURE.length} סעיפים מולאו
+            </p>
+          </div>
+
+          {!isCompleted && (
+            <div className="flex items-center gap-2">
+              {lastSaved && (
+                <span className="text-xs text-gray-400">
+                  נשמר: {lastSaved.toLocaleTimeString("he-IL")}
+                </span>
+              )}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-500 text-sm hover:bg-gray-50 transition"
+                >
+                  חזרה
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleSaveDraft(false)}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-bold hover:bg-yellow-600 transition disabled:opacity-50"
+              >
+                {saving ? "שומר..." : "💾 שמור טיוטה"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving || checkingPlausibility}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {checkingPlausibility ? "בודקת תוכן..." : "הגש דוח סופי"}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* כותרת + סטטוס */}
         <div className="bg-white rounded-xl shadow p-6 mb-6">
           <div className="flex justify-between items-center">
@@ -1388,36 +1466,7 @@ const ReportForm = ({ diagnosisId, childData, onClose }) => {
           />
         )}
 
-        {/* כפתורים כאשר הדוח עדיין בעריכה */}
-        {!isCompleted && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 p-3 flex gap-2 justify-center z-50">
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-500 text-sm hover:bg-gray-50 transition"
-              >
-                חזרה
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => handleSaveDraft(false)}
-              disabled={saving}
-              className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-bold hover:bg-yellow-600 transition disabled:opacity-50"
-            >
-              {saving ? "שומר..." : "💾 שמור טיוטה"}
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving || checkingPlausibility}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
-            >
-              {checkingPlausibility ? "בודקת תוכן..." : "הגש דוח סופי"}
-            </button>
-          </div>
-        )}
+        {/* כפתורי השמירה/הגשה עברו לסרגל ההקשר הדביק בראש הטופס */}
 
         {/* כפתורים וסטטוס כאשר הדוח כבר הוגש והושלם */}
         {isCompleted && (

@@ -1135,25 +1135,46 @@
 // export default DiagnosisDetails;
 
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
 import therapistService from "../services/therapist.service";
 import childService from "../services/child.service";
 import messageService from "../services/message.service";
+import reportService from "../services/report.service";
 import GenericMessageModal from "../components/GenericMessageModal";
 import DiagnosisList from "../components/DiagnosisList";
 import DiagnosisView from "../components/DiagnosisView";
 import ConsentFormViewer from "../components/ConsentFormViewer";
+import Breadcrumbs from "../components/Breadcrumbs";
+import ChildContextCard from "../components/ChildContextCard";
 import consentFormService from "../services/consentForm.service";
 import ReportForm from "../components/ReportForm";
 import { formatDate } from "../utils/dateFormat";
+import { childFullName } from "../utils/childDisplay";
+import { diagnosisLabel } from "../utils/diagnosisDisplay";
+import usePageTitle from "../hooks/usePageTitle";
+import { usePageContext } from "../contexts/PageContext";
 
 const DiagnosisDetails = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser, userRole } = useAuth();
+  const { setNavContext, clearNavContext } = usePageContext();
+
+  // אם הגענו לכאן מ"ניהול הורים ומטופלים" (אדמין), חזרה/סימון תפריט
+  // פעיל צריכים לקחת בחשבון את זה - navigate עם state מ-FamilyManagement.jsx
+  const cameFromFamilies = location.state?.from === "families";
+  const backPath = cameFromFamilies ? "/families" : "/patients";
+  const backLabel = cameFromFamilies
+    ? "ניהול הורים ומטופלים"
+    : "ניהול מטופלים";
+
+  // 🆕 מפת סטטוס דוח לפי אבחון (draft/completed/none) - לתצוגה ברשימת
+  // האבחונים (DiagnosisList), בלי לגעת ב-report.controller.js
+  const [reportStatusByDiagnosis, setReportStatusByDiagnosis] = useState({});
 
   const [childData, setChildData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1173,6 +1194,24 @@ const DiagnosisDetails = () => {
 
   // 🆕 רשימת מטפלים (לאדמין בלבד) - לשינוי המאבחן/ת המשויך/ת לאבחון
   const [therapistsList, setTherapistsList] = useState([]);
+
+  // 🆕 אישור לפני פתיחת אבחון חדש (Part 6)
+  const [isCreateDiagnosisConfirmOpen, setIsCreateDiagnosisConfirmOpen] =
+    useState(false);
+  const [creatingDiagnosis, setCreatingDiagnosis] = useState(false);
+
+  usePageTitle(childFullName(childData) || "פרטי מטופל");
+
+  // 🆕 הקשר ניווט ל-Slider: על איזה ילד מדובר, ומאיזה פריט תפריט הגענו
+  useEffect(() => {
+    const name = childFullName(childData);
+    if (!name) return;
+    setNavContext({
+      menuKey: cameFromFamilies ? "families" : "patients",
+      label: name,
+    });
+    return () => clearNavContext();
+  }, [childData, cameFromFamilies, setNavContext, clearNavContext]);
 
   // 1. שליפת פרטי ילד
   useEffect(() => {
@@ -1241,6 +1280,20 @@ const DiagnosisDetails = () => {
       const token = await currentUser.getIdToken();
       const data = await therapistService.getDiagnoses(childId, token);
       setDiagnoses(data);
+
+      // 🆕 סטטוס דוח לכל אבחון (לתצוגה ברשימה) - נשלף בצד הלקוח כדי לא
+      // לגעת ב-report.controller.js; כשל בשליפת דוח בודד לא חוסם את השאר
+      const entries = await Promise.all(
+        (data || []).map(async (d) => {
+          try {
+            const report = await reportService.getByDiagnosis(d.id, token);
+            return [d.id, report?.status || "none"];
+          } catch {
+            return [d.id, "unknown"];
+          }
+        }),
+      );
+      setReportStatusByDiagnosis(Object.fromEntries(entries));
     } catch (err) {
       console.error("Error loading diagnoses:", err);
     } finally {
@@ -1302,13 +1355,19 @@ const DiagnosisDetails = () => {
     }
   };
 
+  // 🆕 Part 6: פתיחת אבחון חדש דורשת אישור מפורש לפני הביצוע בפועל,
+  // כדי למנוע פתיחה בטעות (למשל קליק כפול)
   const handleCreateDiagnosis = async () => {
+    setCreatingDiagnosis(true);
     try {
       const token = await currentUser.getIdToken();
       await therapistService.openNewDiagnosis(childId, token);
+      setIsCreateDiagnosisConfirmOpen(false);
       loadDiagnoses();
     } catch (err) {
       alert("שגיאה בפתיחת אבחון");
+    } finally {
+      setCreatingDiagnosis(false);
     }
   };
 
@@ -1463,7 +1522,7 @@ const DiagnosisDetails = () => {
                     ניהול אבחון
                   </h2>
                   <button
-                    onClick={handleCreateDiagnosis}
+                    onClick={() => setIsCreateDiagnosisConfirmOpen(true)}
                     className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg"
                   >
                     + פתיחת אבחון חדש
@@ -1475,12 +1534,15 @@ const DiagnosisDetails = () => {
                   <DiagnosisList
                     diagnoses={diagnoses}
                     onSelect={setSelectedDiagnosis}
+                    childFirstName={childData.firstName}
+                    reportStatusByDiagnosis={reportStatusByDiagnosis}
                   />
                 )}
               </>
             ) : (
               <DiagnosisView
                 diagnosis={selectedDiagnosis}
+                allDiagnoses={diagnoses}
                 onBack={() => setSelectedDiagnosis(null)}
                 onUpdateStatus={handleUpdateQStatus}
                 onDeleted={() => {
@@ -1515,26 +1577,30 @@ const DiagnosisDetails = () => {
                 </h2>
                 <p className="text-gray-500 mb-4">בחרי אבחון לכתיבת דוח:</p>
                 <div className="flex flex-col gap-3">
-                  {diagnoses.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDiagnosis(d)}
-                      className="flex justify-between items-center p-4 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition text-right"
-                    >
-                      <div>
-                        <p className="font-bold text-gray-800">
-                          אבחון מתאריך{" "}
-                          {new Date(d.createdAt).toLocaleDateString("he-IL")}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          סטטוס: {d.status || "פעיל"}
-                        </p>
-                      </div>
-                      <span className="text-blue-600 font-bold">
-                        כתיבת דוח ←
-                      </span>
-                    </button>
-                  ))}
+                  {diagnoses.map((d, index) => {
+                    const reportStatus = reportStatusByDiagnosis[d.id];
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => setSelectedDiagnosis(d)}
+                        className="flex justify-between items-center p-4 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition text-right"
+                      >
+                        <div>
+                          <p className="font-bold text-gray-800">
+                            {diagnosisLabel(d, { index, total: diagnoses.length })}
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            סטטוס: {d.status || "פעיל"}
+                            {reportStatus === "draft" && " · דוח: טיוטה"}
+                            {reportStatus === "completed" && " · דוח: הוגש"}
+                          </p>
+                        </div>
+                        <span className="text-blue-600 font-bold">
+                          כתיבת דוח ←
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -1548,6 +1614,10 @@ const DiagnosisDetails = () => {
                 <ReportForm
                   diagnosisId={selectedDiagnosis.id}
                   childData={childData}
+                  diagnosisLabel={diagnosisLabel(selectedDiagnosis, {
+                    index: diagnoses.findIndex((d) => d.id === selectedDiagnosis.id),
+                    total: diagnoses.length,
+                  })}
                   onClose={() => setSelectedDiagnosis(null)}
                 />
               </div>
@@ -1620,17 +1690,21 @@ const DiagnosisDetails = () => {
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
       <div className="max-w-[1600px] mx-auto">
-        <div className="flex justify-start mb-8">
-          <button
-            onClick={() => navigate("/patients")}
-            className="text-gray-400 hover:text-blue-600 font-medium flex items-center gap-2 group transition-all"
-          >
-            <span className="text-xl group-hover:-translate-x-1 transition-transform">
-              →
-            </span>{" "}
-            חזרה לרשימה
-          </button>
-        </div>
+        <Breadcrumbs
+          items={[
+            { label: backLabel, onClick: () => navigate(backPath) },
+            { label: childFullName(childData) || "פרטי מטופל" },
+          ]}
+        />
+
+        <ChildContextCard
+          childData={childData}
+          therapistLabel={
+            userRole === "admin" && childData?.therapistName
+              ? `מאבחן/ת אחראי/ת: ${childData.therapistName}`
+              : undefined
+          }
+        />
 
         <div className="flex flex-wrap gap-3 mb-10">
           {[
@@ -1666,6 +1740,56 @@ const DiagnosisDetails = () => {
           onClose={() => setIsConsentViewerOpen(false)}
           consentForm={consentForm}
         />
+
+        {/* 🆕 Part 6: אישור לפני פתיחת אבחון חדש */}
+        {isCreateDiagnosisConfirmOpen && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            dir="rtl"
+            onClick={() =>
+              !creatingDiagnosis && setIsCreateDiagnosisConfirmOpen(false)
+            }
+          >
+            <div
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden text-right"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100">
+                <h3 className="text-xl font-bold text-gray-800">
+                  פתיחת אבחון חדש עבור {childData?.firstName}
+                </h3>
+              </div>
+              <div className="p-6 space-y-3">
+                <p className="text-gray-600">
+                  פעולה זו תפתח אבחון נוסף ותשלח להורה הודעה אוטומטית למילוי
+                  שאלון ההורים וטופס ההסכמה מחדש.
+                </p>
+                {diagnoses.some((d) => !d.closed) && (
+                  <div className="bg-amber-50 border border-amber-100 text-amber-800 text-sm rounded-xl p-3">
+                    ⚠️ לילד/ה זה יש כבר אבחון פתוח. במקרים רגילים אין צורך
+                    לפתוח אבחון נוסף - בדקי שזו אינה פתיחה כפולה בטעות.
+                  </div>
+                )}
+              </div>
+              <div className="p-6 pt-0 flex gap-3">
+                <button
+                  onClick={handleCreateDiagnosis}
+                  disabled={creatingDiagnosis}
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:bg-gray-400"
+                >
+                  {creatingDiagnosis ? "פותח..." : "כן, פתח אבחון חדש"}
+                </button>
+                <button
+                  onClick={() => setIsCreateDiagnosisConfirmOpen(false)}
+                  disabled={creatingDiagnosis}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

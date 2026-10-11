@@ -145,8 +145,9 @@
 // export default Slider;
 
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext"; // ייבוא ה-Context
+import { usePageContext } from "../contexts/PageContext";
 
 const MENU_ITEMS = {
   guest: [
@@ -180,6 +181,8 @@ const MENU_ITEMS = {
 const Slider = () => {
   // משיכת ה-Role ישירות מה-Context
   const { userRole, loading } = useAuth();
+  const { navContext } = usePageContext();
+  const location = useLocation();
 
   if (loading) return null; // או ספינר קטן
 
@@ -187,20 +190,43 @@ const Slider = () => {
   const role = userRole?.toLowerCase() || "guest";
   const linksToDisplay = MENU_ITEMS[role] || MENU_ITEMS.guest;
 
+  // דף "ניהול אבחון" של ילד ספציפי (/therapist/child/:id) נגיש משני
+  // מסלולי תפריט שונים ("ניהול מטופלים" או "ניהול הורים ומטופלים") -
+  // navContext.menuKey (שנקבע ע"י העמוד עצמו) קובע איזה מהם לסמן כפעיל.
+  const isChildDetailPath = location.pathname.startsWith("/therapist/child/");
+
   return (
     <aside className="sidebar">
       <nav>
         <ul>
-          {linksToDisplay.map((link, index) => (
-            <li key={index}>
-              <NavLink
-                to={link.path}
-                className={({ isActive }) => (isActive ? "active-link" : "")}
-              >
-                {link.label}
-              </NavLink>
-            </li>
-          ))}
+          {linksToDisplay.map((link, index) => {
+            const isChildContextMatch =
+              isChildDetailPath &&
+              ((link.path === "/patients" &&
+                navContext?.menuKey !== "families") ||
+                (link.path === "/families" &&
+                  navContext?.menuKey === "families"));
+
+            return (
+              <li key={index}>
+                <NavLink
+                  to={link.path}
+                  className={({ isActive }) =>
+                    isActive || isChildContextMatch ? "active-link" : ""
+                  }
+                >
+                  {link.label}
+                </NavLink>
+                {isChildContextMatch && navContext?.label && (
+                  <div className="nav-context-line">
+                    {navContext.sub
+                      ? `${navContext.label} ‹ ${navContext.sub}`
+                      : navContext.label}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
@@ -230,6 +256,15 @@ const Slider = () => {
         .active-link {
           font-weight: bold;
           border-left: 4px solid #fff; /* שיניתי ל-left כי האתר ב-RTL */
+        }
+        .nav-context-line {
+          padding: 0 20px 8px 20px;
+          margin-top: -6px;
+          font-size: 12px;
+          color: #c9d6ff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       `}</style>
     </aside>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import ChildrenGrid from "../components/ChildrenGrid"; // וודאי נתיב נכון
+import usePageTitle from "../hooks/usePageTitle";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -9,6 +10,8 @@ const AllParentChildren = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
+
+  usePageTitle("הילדים שלי");
 
   useEffect(() => {
     const fetchChildren = async () => {

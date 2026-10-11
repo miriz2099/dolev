@@ -113,12 +113,19 @@ const ParentQuestionnaire = ({
   diagnosisId,
   onSave,
   onCancel,
+  onStepChange,
 }) => {
   const formTopRef = React.useRef(null);
 
   const [step, setStep] = useState(1);
   const [saveStatus, setSaveStatus] = useState("");
   const [showMissing, setShowMissing] = useState(false);
+
+  // 🆕 מדווח להורה/לעמוד האב על השלב הנוכחי (לסרגל הקשר דביק) - לא משפיע
+  // על שום לוגיקה פנימית של השאלון עצמו
+  useEffect(() => {
+    onStepChange?.({ step, totalSteps: STEPS.length, stepLabel: STEPS[step - 1] });
+  }, [step, onStepChange]);
   const [formData, setFormData] = useState({
     date: new Date().toLocaleDateString("he-IL"),
 

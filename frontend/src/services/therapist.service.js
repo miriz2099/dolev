@@ -186,10 +186,20 @@ const cancelAssessmentAppointment = async (
   );
 };
 
+// 🆕 תצוגה מקדימה לפני מחיקת אבחון - כמה מסמכים ייעלמו, ופרטי הילד
+const getDeletePreview = async (diagnosisId, token) => {
+  return await fetchWithAuth(
+    `${BASE_URL}/diagnoses/${diagnosisId}/delete-preview`,
+    token,
+    { method: "GET" },
+  );
+};
+
 // מחיקת אבחון בודד + כל הטפסים שלו
-const deleteDiagnosis = async (diagnosisId, token) => {
+const deleteDiagnosis = async (diagnosisId, token, notifyParent = false) => {
   return await fetchWithAuth(`${BASE_URL}/diagnoses/${diagnosisId}`, token, {
     method: "DELETE",
+    body: JSON.stringify({ notifyParent }),
   });
 };
 // ייצוא כל הפונקציות
@@ -212,4 +222,5 @@ export default {
   bookAssessmentAppointment,
   cancelAssessmentAppointment,
   deleteDiagnosis,
+  getDeletePreview,
 };

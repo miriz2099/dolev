@@ -30,6 +30,7 @@ const deleteDiagnosisCascade = async (diagnosisId) => {
     "school_invitations",
     "consent_forms",
     "diary_events", // appointments שנקבעו דרך מערכת התיאום נושאים diagnosisId
+    "reports",
   ]) {
     refs.push(...(await refsByQuery(collection, "diagnosisId", diagnosisId)));
   }

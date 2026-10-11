@@ -1478,11 +1478,23 @@ import therapistService from "../services/therapist.service";
 import schoolQuestionnaireService from "../services/schoolQuestionnaire.service";
 import consentFormService from "../services/consentForm.service";
 import reportService from "../services/report.service";
+import Breadcrumbs from "../components/Breadcrumbs";
+import ChildContextCard from "../components/ChildContextCard";
+import { childFullName } from "../utils/childDisplay";
+import { diagnosisLabel } from "../utils/diagnosisDisplay";
+import usePageTitle from "../hooks/usePageTitle";
 
 const ChildDetails = () => {
   const { childId } = useParams();
   const navigate = useNavigate();
   const { currentUser, userRole } = useAuth();
+
+  // 🆕 מתג מעבר בין אחים/אחיות (אם להורה יש יותר מילד/ה אחד/ת)
+  const [siblings, setSiblings] = useState([]);
+  // 🆕 כל האבחונים של הילד/ה (לא רק הפעיל) - לתווית "אבחון X מתוך Y"
+  const [allDiagnoses, setAllDiagnoses] = useState([]);
+  // 🆕 התקדמות בשאלון ההורים בזמן מילוי (לסרגל הקשר הדביק)
+  const [questionnaireStepInfo, setQuestionnaireStepInfo] = useState(null);
 
   const [childData, setChildData] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -1530,6 +1542,7 @@ const ChildDetails = () => {
       const active =
         diagnoses && diagnoses.length > 0 ? diagnoses[0] : null;
       setActiveDiagnosis(active);
+      setAllDiagnoses(diagnoses || []);
 
       // טפסים ושאלונים נשלפים לפי האבחון הפעיל (Diagnosis-centric)
       if (!active) {
@@ -1560,6 +1573,26 @@ const ChildDetails = () => {
   useEffect(() => {
     if (currentUser && childId) fetchStatus();
   }, [fetchStatus, currentUser, childId]);
+
+  usePageTitle(childFullName(childData) || "פרטי הילד/ה");
+
+  // 🆕 שליפת כל ילדי ההורה (לצורך מתג מעבר בין אחים/אחיות, אם יש יותר מילד/ה אחד/ת)
+  useEffect(() => {
+    const fetchSiblings = async () => {
+      if (!currentUser) return;
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/children/myChildren`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (res.ok) setSiblings(await res.json());
+      } catch (err) {
+        console.error("Error fetching siblings:", err);
+      }
+    };
+    fetchSiblings();
+  }, [currentUser]);
 
   // Fetch child data and messages
   const fetchData = useCallback(async () => {
@@ -1683,15 +1716,29 @@ const ChildDetails = () => {
     if (!childData) return null;
     if (showQuestionnaire) {
       return (
-        <ParentQuestionnaire
-          childId={childId}
-          diagnosisId={activeDiagnosis?.id}
-          onSave={() => {
-            setShowQuestionnaire(false);
-            window.location.reload();
-          }}
-          onCancel={() => setShowQuestionnaire(false)}
-        />
+        <>
+          {/* 🆕 סרגל הקשר דביק בזמן מילוי השאלון - איזה שלב ומתוך כמה */}
+          {questionnaireStepInfo && (
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-2xl shadow-sm px-5 py-3 mb-4 text-sm text-gray-500" dir="rtl">
+              שאלון הורים עבור {childFullName(childData) || "הילד/ה"} · שלב{" "}
+              {questionnaireStepInfo.step} מתוך{" "}
+              {questionnaireStepInfo.totalSteps}
+              {questionnaireStepInfo.stepLabel
+                ? `: ${questionnaireStepInfo.stepLabel}`
+                : ""}
+            </div>
+          )}
+          <ParentQuestionnaire
+            childId={childId}
+            diagnosisId={activeDiagnosis?.id}
+            onStepChange={setQuestionnaireStepInfo}
+            onSave={() => {
+              setShowQuestionnaire(false);
+              window.location.reload();
+            }}
+            onCancel={() => setShowQuestionnaire(false)}
+          />
+        </>
       );
     }
 
@@ -2016,20 +2063,56 @@ const ChildDetails = () => {
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-[1600px] mx-auto flex justify-start mb-6">
-        <button
-          onClick={() =>
-            showQuestionnaire ? setShowQuestionnaire(false) : navigate(-1)
+      <div className="max-w-[1600px] mx-auto">
+        <Breadcrumbs
+          items={
+            showQuestionnaire
+              ? [
+                  { label: "הילדים שלי", onClick: () => navigate("/all-children") },
+                  {
+                    label: childFullName(childData) || "פרטי הילד/ה",
+                    onClick: () => setShowQuestionnaire(false),
+                  },
+                  { label: "מילוי שאלון הורים" },
+                ]
+              : [
+                  { label: "הילדים שלי", onClick: () => navigate("/all-children") },
+                  { label: childFullName(childData) || "פרטי הילד/ה" },
+                ]
           }
-          className="text-gray-400 hover:text-blue-600 flex items-center gap-2"
-        >
-          <span>→</span> {showQuestionnaire ? "ביטול וחזרה" : "חזרה"}
-        </button>
+        />
+
+        {!showQuestionnaire && (
+          <ChildContextCard
+            childData={childData}
+            extra={
+              siblings.length > 1 ? (
+                <select
+                  value={childId}
+                  onChange={(e) => navigate(`/child-details/${e.target.value}`)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  {siblings.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {childFullName(s) || "ילד/ה"}
+                    </option>
+                  ))}
+                </select>
+              ) : undefined
+            }
+          />
+        )}
       </div>
 
       <div className="max-w-[1600px] mx-auto">
         {!showQuestionnaire && userRole === "patient" && diagnosisProgress && (
-          <DiagnosisProgressStepper progress={diagnosisProgress} />
+          <DiagnosisProgressStepper
+            progress={diagnosisProgress}
+            contextLabel={diagnosisLabel(activeDiagnosis, {
+              index: 0,
+              total: allDiagnoses.length,
+            })}
+          />
         )}
         {!showQuestionnaire && (
           <ChildTabsHeader

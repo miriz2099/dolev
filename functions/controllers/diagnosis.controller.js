@@ -2023,6 +2023,45 @@ const verifyDiagnosisOwnership = async (diagnosisId, therapistId) => {
   return { diagRef, diagData };
 };
 
+// 🆕 אימות הרשאה למחיקת אבחון: אדמין או המאבחן/ת הבעל/ת האבחון בלבד.
+// לא נוגעים ב-verifyDiagnosisOwnership הקיימת (שהיא therapist-only ומשמשת
+// גם את addRequiredAssessment/updateRequiredAssessment/deleteRequiredAssessment) -
+// זו פונקציית עזר נפרדת, ל-deleteDiagnosis בלבד.
+const verifyDiagnosisAdminOrOwner = async (diagnosisId, uid) => {
+  const diagRef = db.collection("diagnoses").doc(diagnosisId);
+  const diagDoc = await diagRef.get();
+
+  if (!diagDoc.exists) {
+    const err = new Error("האבחון לא נמצא");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const diagData = diagDoc.data();
+  const requesterDoc = await db.collection("users").doc(uid).get();
+  const requesterRole = requesterDoc.exists ? requesterDoc.data().role : null;
+  const isAdmin = requesterRole === "admin";
+  const isOwnerTherapist = diagData.therapistId === uid;
+
+  if (!isAdmin && !isOwnerTherapist) {
+    const err = new Error("אין הרשאה למחוק אבחון זה");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return { diagRef, diagData };
+};
+
+// DD.MM.YYYY - לפורמט ההודעה להורה על ביטול אבחון (להבדיל מ-formatDateForMessage
+// למטה, שמיועדת לשעות תור ולא לתאריך פתיחת אבחון)
+const formatDateDMY = (isoStr) => {
+  const date = new Date(isoStr);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 // ============================================
 // יצירת / שליפת / עדכון אבחונים (Diagnoses)
 // ============================================
@@ -3059,18 +3098,129 @@ const cancelAssessmentAppointment = async (req, res) => {
 };
 
 // ============================================
-// מחיקת אבחון בודד + כל הטפסים שלו (מאבחן בעל האבחון)
+// 🆕 תצוגה מקדימה לפני מחיקת אבחון - כמה מסמכים ייעלמו, ופרטי הילד
+// (לשם הצגת אישור מפורט ושער "הקלידי שם" בצד הלקוח)
+// GET /diagnoses/:diagnosisId/delete-preview
+// ============================================
+const getDiagnosisDeletePreview = async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const { diagData } = await verifyDiagnosisAdminOrOwner(diagnosisId, uid);
+
+    const childDoc = await db.collection("children").doc(diagData.childId).get();
+    const childData = childDoc.exists ? childDoc.data() : {};
+
+    const collectionsToCount = [
+      "parent_questionnaires",
+      "school_questionnaires",
+      "school_invitations",
+      "consent_forms",
+      "diary_events",
+      "reports",
+    ];
+
+    const counts = {};
+    for (const collectionName of collectionsToCount) {
+      const snap = await db
+        .collection(collectionName)
+        .where("diagnosisId", "==", diagnosisId)
+        .get();
+      counts[collectionName] = snap.size;
+    }
+
+    res.status(200).json({
+      diagnosisId,
+      childId: diagData.childId,
+      childFirstName: childData.firstName || "",
+      childFullName: `${childData.firstName || ""} ${childData.lastName || ""}`.trim(),
+      closed: !!diagData.closed,
+      status: diagData.status || null,
+      createdAt: diagData.createdAt || null,
+      hasParent: !!childData.parentId,
+      counts,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error("Error in getDiagnosisDeletePreview:", error);
+    res.status(500).json({ error: "שגיאת שרת בהכנת תצוגה מקדימה למחיקה" });
+  }
+};
+
+// ============================================
+// מחיקת אבחון בודד + כל הטפסים שלו (אדמין או המאבחן/ת הבעל/ת האבחון)
 // DELETE /diagnoses/:diagnosisId
 // ============================================
 const deleteDiagnosis = async (req, res) => {
   try {
     const { diagnosisId } = req.params;
-    const therapistId = req.user.uid;
+    const uid = req.user.uid;
+    const notifyParent =
+      req.body?.notifyParent === true || req.query?.notifyParent === "true";
 
-    // אימות בעלות - רק המאבחן של האבחון יכול למחוק אותו
-    await verifyDiagnosisOwnership(diagnosisId, therapistId);
+    // אימות הרשאה - אדמין או המאבחן/ת הבעל/ת האבחון (ראה verifyDiagnosisAdminOrOwner)
+    const { diagData } = await verifyDiagnosisAdminOrOwner(diagnosisId, uid);
+
+    if (diagData.closed) {
+      const err = new Error("לא ניתן למחוק אבחון שנסגר רשמית");
+      err.statusCode = 409;
+      throw err;
+    }
 
     await deleteDiagnosisCascade(diagnosisId);
+
+    // 🆕 תוצאות לוואי - לא חוסמות את תשובת ההצלחה אם נכשלות
+    const childId = diagData.childId;
+    if (childId) {
+      try {
+        const remainingSnap = await db
+          .collection("diagnoses")
+          .where("childId", "==", childId)
+          .get();
+        const hasOpenDiagnosis = remainingSnap.docs.some(
+          (doc) => !doc.data().closed,
+        );
+        if (!hasOpenDiagnosis) {
+          await db
+            .collection("children")
+            .doc(childId)
+            .update({ canFillQuestionnaire: false });
+        }
+      } catch (sideEffectError) {
+        console.error(
+          "Error updating child after diagnosis delete:",
+          sideEffectError,
+        );
+      }
+
+      if (notifyParent) {
+        try {
+          const childDoc = await db.collection("children").doc(childId).get();
+          const childData = childDoc.exists ? childDoc.data() : null;
+          if (childData?.parentId) {
+            const dateLabel = diagData.createdAt
+              ? formatDateDMY(diagData.createdAt)
+              : "";
+            await db.collection("messages").add({
+              senderId: uid,
+              receiverId: childData.parentId,
+              childId,
+              text: `שלום, האבחון שנפתח עבור ${childData.firstName} בתאריך ${dateLabel} בוטל. אין צורך למלא את השאלון ואת טופס ההסכמה שנשלחו. לשאלות ניתן לפנות אליי כאן.`,
+              createdAt: new Date().toISOString(),
+              read: false,
+            });
+          }
+        } catch (notifyError) {
+          console.error(
+            "Error notifying parent after diagnosis delete:",
+            notifyError,
+          );
+        }
+      }
+    }
 
     res.status(200).json({ message: "האבחון וכל הטפסים המקושרים נמחקו" });
   } catch (error) {
@@ -3098,6 +3248,7 @@ module.exports = {
   getParentQuestionnaireAnswers,
   exportParentQuestionnairePDF,
   deleteDiagnosis,
+  getDiagnosisDeletePreview,
 
   // ניהול אבחונים נדרשים
   addRequiredAssessment,

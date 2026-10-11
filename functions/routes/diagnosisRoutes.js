@@ -17,6 +17,7 @@ const {
   bookAssessmentAppointment,
   cancelAssessmentAppointment,
   deleteDiagnosis,
+  getDiagnosisDeletePreview,
 } = require("../controllers/diagnosis.controller");
 const { verifyToken, verifyAdmin } = require("../middleware/auth.middleware");
 
@@ -76,7 +77,14 @@ router.delete(
   cancelAssessmentAppointment,
 );
 
-// 🆕 מחיקת אבחון בודד + כל הטפסים שלו (המאבחן בעל האבחון)
+// 🆕 תצוגה מקדימה לפני מחיקת אבחון (אדמין או המאבחן/ת הבעל/ת האבחון)
+router.get(
+  "/:diagnosisId/delete-preview",
+  verifyToken,
+  getDiagnosisDeletePreview,
+);
+
+// 🆕 מחיקת אבחון בודד + כל הטפסים שלו (אדמין או המאבחן/ת הבעל/ת האבחון)
 router.delete("/:diagnosisId", verifyToken, deleteDiagnosis);
 
 module.exports = router;

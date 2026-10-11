@@ -188,7 +188,9 @@ const FamilyManagement = () => {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() =>
-                                navigate(`/therapist/child/${child.id}`)
+                                navigate(`/therapist/child/${child.id}`, {
+                                  state: { from: "families" },
+                                })
                               }
                               className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg font-semibold hover:bg-blue-100 transition-all text-xs"
                             >

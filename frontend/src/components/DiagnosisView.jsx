@@ -543,9 +543,12 @@ import { useAuth } from "../contexts/AuthContext";
 import ReportForm from "./ReportForm";
 import childService from "../services/child.service";
 import { formatDate } from "../utils/dateFormat";
+import { childFullName } from "../utils/childDisplay";
+import { diagnosisLabel } from "../utils/diagnosisDisplay";
 
 const DiagnosisView = ({
   diagnosis,
+  allDiagnoses = [],
   onBack,
   childName,
   onDeleted,
@@ -558,6 +561,16 @@ const DiagnosisView = ({
   onDiagnosisClosed,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
+
+  // 🆕 מחיקת אבחון - מודאל עם תצוגה מקדימה ושער "הקלידי שם" (Part 7)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletePreview, setDeletePreview] = useState(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deletePreviewError, setDeletePreviewError] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [notifyParentChecked, setNotifyParentChecked] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // 🆕 שינוי מאבחן/ת (אדמין בלבד)
   const [reassigning, setReassigning] = useState(false);
@@ -726,23 +739,56 @@ const DiagnosisView = ({
     setIsCorrectionModalOpen(false);
   };
 
-  const handleDeleteDiagnosis = async () => {
-    if (
-      !window.confirm(
-        "למחוק את האבחון לצמיתות? פעולה זו תמחק את כל הטפסים, השאלונים, טופס ההסכמה והתורים המשויכים לאבחון זה. לא ניתן לשחזר.",
-      )
-    ) {
-      return;
-    }
+  // 🆕 פתיחת מודאל המחיקה + שליפת תצוגה מקדימה (כמה מסמכים ייעלמו)
+  const openDeleteModal = async () => {
+    setIsDeleteModalOpen(true);
+    setDeleteConfirmText("");
+    setDeleteError("");
+    setDeletePreviewError("");
+    setDeletePreview(null);
+    setDeletePreviewLoading(true);
     try {
       const token = await currentUser.getIdToken();
-      await therapistService.deleteDiagnosis(diagnosis.id, token);
-      alert("האבחון נמחק בהצלחה");
+      const preview = await therapistService.getDeletePreview(
+        diagnosis.id,
+        token,
+      );
+      setDeletePreview(preview);
+      setNotifyParentChecked(!!preview?.hasParent);
+    } catch (err) {
+      console.error("Error loading delete preview:", err);
+      setDeletePreviewError(
+        err.message || "שגיאה בטעינת תצוגה מקדימה למחיקה",
+      );
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const expectedConfirmName = (deletePreview?.childFirstName || "").trim();
+  const isConfirmNameMatch =
+    expectedConfirmName.length > 0 &&
+    deleteConfirmText.trim() === expectedConfirmName;
+
+  const handleDeleteDiagnosis = async () => {
+    if (!isConfirmNameMatch || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const token = await currentUser.getIdToken();
+      await therapistService.deleteDiagnosis(
+        diagnosis.id,
+        token,
+        notifyParentChecked,
+      );
+      setIsDeleteModalOpen(false);
       if (onDeleted) onDeleted();
       else if (onBack) onBack();
     } catch (err) {
       console.error("Error deleting diagnosis:", err);
-      alert("שגיאה במחיקת האבחון");
+      setDeleteError(err.message || "שגיאה במחיקת האבחון. נסי שוב.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1108,6 +1154,10 @@ const DiagnosisView = ({
           <ReportForm
             diagnosisId={diagnosis.id}
             childData={childData}
+            diagnosisLabel={diagnosisLabel(diagnosis, {
+              index: allDiagnoses.findIndex((d) => d.id === diagnosis.id),
+              total: allDiagnoses.length,
+            })}
             onClose={() => setActiveSubTab("questionnaires")}
           />
         );
@@ -1131,9 +1181,24 @@ const DiagnosisView = ({
           </button>
           <div>
             <h3 className="text-2xl font-bold text-gray-800">ניהול אבחון</h3>
-            {childName && (
-              <p className="text-blue-600 font-medium">מטופל/ת: {childName}</p>
-            )}
+            {(() => {
+              const resolvedChildName = childFullName(childData) || childName;
+              const diagIndex = allDiagnoses.findIndex(
+                (d) => d.id === diagnosis.id,
+              );
+              const headerParts = [
+                resolvedChildName ? `מטופל/ת: ${resolvedChildName}` : null,
+                diagnosisLabel(diagnosis, {
+                  index: diagIndex >= 0 ? diagIndex : undefined,
+                  total: allDiagnoses.length,
+                }) || null,
+              ].filter(Boolean);
+              return headerParts.length > 0 ? (
+                <p className="text-blue-600 font-medium">
+                  {headerParts.join(" · ")}
+                </p>
+              ) : null;
+            })()}
           </div>
         </div>
 
@@ -1159,8 +1224,14 @@ const DiagnosisView = ({
           )}
 
           <button
-            onClick={handleDeleteDiagnosis}
-            className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm"
+            onClick={openDeleteModal}
+            disabled={diagnosis.closed}
+            title={
+              diagnosis.closed
+                ? "לא ניתן למחוק אבחון שנסגר רשמית"
+                : undefined
+            }
+            className="flex items-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-bold px-5 py-2.5 rounded-2xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
             🗑️ מחק אבחון
           </button>
@@ -1325,6 +1396,144 @@ const DiagnosisView = ({
                   ביטול
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Part 7: מודאל מחיקת אבחון - תצוגה מקדימה + שער "הקלידי שם" */}
+      {isDeleteModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          dir="rtl"
+          onClick={() => !deleting && setIsDeleteModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden text-right"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-red-500 p-6 text-white">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                🗑️ מחיקת אבחון לצמיתות
+              </h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {deletePreviewLoading ? (
+                <div className="flex items-center gap-3 text-gray-500 py-4">
+                  <span className="w-5 h-5 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
+                  טוען תצוגה מקדימה...
+                </div>
+              ) : deletePreviewError ? (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-red-700 text-sm">
+                  {deletePreviewError}
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-700">
+                    פעולה זו תמחק לצמיתות את{" "}
+                    <span className="font-bold text-red-600">
+                      {diagnosisLabel(diagnosis, {
+                        index: allDiagnoses.findIndex(
+                          (d) => d.id === diagnosis.id,
+                        ),
+                        total: allDiagnoses.length,
+                      })}
+                    </span>{" "}
+                    עבור {deletePreview?.childFullName || "המטופל/ת"}, כולל:
+                  </p>
+
+                  {(() => {
+                    const countLabels = {
+                      parent_questionnaires: "שאלוני הורים",
+                      school_questionnaires: "שאלוני בית ספר",
+                      school_invitations: "הזמנות בית ספר",
+                      consent_forms: "טפסי הסכמה",
+                      diary_events: "תורים שנקבעו",
+                      reports: "דוחות",
+                    };
+                    const nonZero = Object.entries(
+                      deletePreview?.counts || {},
+                    ).filter(([, count]) => count > 0);
+
+                    return nonZero.length > 0 ? (
+                      <ul className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-1 text-sm text-gray-600">
+                        {nonZero.map(([key, count]) => (
+                          <li key={key}>
+                            • {countLabels[key] || key}: {count}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-400">
+                        לא נמצאו טפסים או מסמכים מקושרים למחיקה.
+                      </p>
+                    );
+                  })()}
+
+                  <p className="text-red-600 text-sm font-bold">
+                    לא ניתן לשחזר פעולה זו.
+                  </p>
+
+                  {deletePreview?.hasParent && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notifyParentChecked}
+                        onChange={(e) =>
+                          setNotifyParentChecked(e.target.checked)
+                        }
+                        disabled={deleting}
+                        className="w-5 h-5 mt-0.5 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700">
+                        לשלוח להורה הודעה שהאבחון בוטל ואין צורך למלא את
+                        הטפסים שנשלחו
+                      </span>
+                    </label>
+                  )}
+
+                  {expectedConfirmName && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">
+                        לאישור, הקלידי את השם הפרטי של הילד/ה: "
+                        {expectedConfirmName}"
+                      </label>
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        disabled={deleting}
+                        className="w-full border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                        placeholder={expectedConfirmName}
+                      />
+                    </div>
+                  )}
+
+                  {deleteError && (
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-red-700 text-sm">
+                      {deleteError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleDeleteDiagnosis}
+                      disabled={!isConfirmNameMatch || deleting}
+                      className="flex-1 py-3 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      {deleting ? "מוחק..." : "כן, מחק לצמיתות"}
+                    </button>
+                    <button
+                      onClick={() => setIsDeleteModalOpen(false)}
+                      disabled={deleting}
+                      className="flex-1 py-3 rounded-lg font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

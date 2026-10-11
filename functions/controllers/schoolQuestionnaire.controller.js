@@ -573,6 +573,29 @@ const resetSchoolInvitation = async (req, res) => {
 const getInvitationByDiagnosis = async (req, res) => {
   try {
     const { diagnosisId } = req.params;
+    const uid = req.user.uid;
+
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (!diagDoc.exists) {
+      return res.status(404).json({ error: "האבחון לא נמצא" });
+    }
+    const diagnosis = diagDoc.data();
+
+    // הרשאה: אדמין / המאבחן/ת הבעל/ת האבחון (getDiagnosisAccess) / ההורה של הילד
+    const access = await getDiagnosisAccess(uid, diagnosisId);
+    let isAuthorized = access.ok;
+
+    if (!isAuthorized && diagnosis.childId) {
+      const childDoc = await db.collection("children").doc(diagnosis.childId).get();
+      if (childDoc.exists && childDoc.data().parentId === uid) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "אין הרשאה לגשת להזמנה זו" });
+    }
+
     const snapshot = await db
       .collection("school_invitations")
       .where("diagnosisId", "==", diagnosisId)
@@ -583,8 +606,11 @@ const getInvitationByDiagnosis = async (req, res) => {
       return res.status(200).json(null); // חשוב: מחזירים null ולא שגיאה
     }
 
-    res.status(200).json(snapshot.docs[0].data());
+    // לעולם לא לשלוח את ה-token ללקוח - הוא מאפשר למלא/לצפות בשאלון כמורה
+    const { token, ...safeInvitation } = snapshot.docs[0].data();
+    res.status(200).json(safeInvitation);
   } catch (error) {
+    console.error("Error in getInvitationByDiagnosis:", error);
     res.status(500).json({ error: "שגיאה בשליפת הזמנה" });
   }
 };

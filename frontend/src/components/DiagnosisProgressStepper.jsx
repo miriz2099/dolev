@@ -6,14 +6,18 @@
 
 import React from "react";
 
-const DiagnosisProgressStepper = ({ progress }) => {
+const DiagnosisProgressStepper = ({ progress, contextLabel }) => {
   if (!progress?.steps?.length) return null;
 
   const { currentStep, steps } = progress;
 
   return (
     <div className="bg-white rounded-xl shadow p-6 mb-6" dir="rtl">
-      <h3 className="text-base font-bold text-gray-700 mb-5">שלב האבחון</h3>
+      <h3 className="text-base font-bold text-gray-700 mb-1">שלב האבחון</h3>
+      {contextLabel && (
+        <p className="text-xs text-gray-400 mb-4">{contextLabel}</p>
+      )}
+      {!contextLabel && <div className="mb-4" />}
       <div className="flex items-start">
         {steps.map((step, index) => {
           const isDone = step.done;
