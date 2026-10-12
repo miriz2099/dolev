@@ -19,8 +19,11 @@
       "services/ai/deidentify.js",
       "services/ai/errors.js",
       "services/ai/index.js",
-      "middleware/**",
-      "helpers/**"
+      "middleware/sanitize.middleware.js",
+      "middleware/auth.middleware.js",
+      "helpers/time.helper.js",
+      "helpers/signature.helper.js",
+      "helpers/childId.helper.js"
     ]
   },
   "engines": {
