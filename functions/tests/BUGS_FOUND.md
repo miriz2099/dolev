@@ -2,7 +2,7 @@
 
 מסמך זה מתעד את כלל הפגמים, פגיעויות האבטחה ומקרי הקצה שהתגלו במהלך כתיבת והרצת מערך הבדיקות האוטומטיות (יחידה, אינטגרציה, וחוקי אבטחה) של מערכת "דולב".
 
-בהתאם לעקרונות ההנדסיים שהוגדרו לפרויקט, באגים בקוד המוצר **לא תוקנו בצורה עיוורת**, אלא כוסו באמצעות בדיקות ייעודיות המסומנות כ-`test.failing` (או תועדו כפגמים בחוקי אבטחה), למעט תיקונים תשתיתיים שאושרו במפורש (מודול ההתממה `deidentify.js`).
+בהתאם לעקרונות ההנדסיים שהוגדרו לפרויקט, באגים בקוד המוצר לא תוקנו בצורה עיוורת: בשלב הראשון כוסו באמצעות בדיקות ייעודיות המסומנות כ-`test.failing` (או תועדו כפגמים בחוקי אבטחה), למעט תיקונים תשתיתיים שאושרו במפורש (מודול ההתממה `deidentify.js`). בשלב מאוחר יותר, לאחר אישור מפורש, שלושת הבאגים שתועדו בסעיף 2 (BUG-03, BUG-04, BUG-05) תוקנו בקוד המוצר, והבדיקות המתאימות הוסרו מ-`test.failing` והפכו לבדיקות `it` רגילות שעוברות בפועל. הממצא היחיד שנותר פתוח הוא זה בחוקי אחסון ה-Storage (סעיף 3), שלא תוקן מכיוון שהרצת הבדיקות אימתה שהוא עדיין קיים במציאות (ולא, כפי שהונח בטעות, שהוא ממצא שגוי).
 
 ---
 
@@ -71,48 +71,58 @@ const FALLBACK_PATTERNS = [
 
 ---
 
-## 2. באגים בקוד המוצר שסומנו כ-`test.failing` (ללא שינוי קוד המוצר)
+## 2. באגים בקוד המוצר שתוקנו (לשעבר מסומנים כ-`test.failing`)
 
-### ממצא 2.1: עקיפת סניטיזציית XSS במערכים של אובייקטים
+### ממצא 2.1: עקיפת סניטיזציית XSS במערכים של אובייקטים — תוקן
 * **מיקום בקוד:** `functions/middleware/sanitize.middleware.js` (פונקציה `sanitizeObject`)
 * **סוג פגיעות:** Cross-Site Scripting (XSS) / Data Sanitization Bypass
-* **בדיקה תואמת:** `functions/tests/unit/sanitize.test.js` (`sanitizeObject should sanitize nested objects inside arrays`)
+* **בדיקה תואמת:** `functions/tests/unit/sanitize.test.js` (`should sanitize objects nested inside arrays within request body`) - בדיקת `it` רגילה, עוברת.
 * **תיאור הכשל:**
-  בזמן ריצה רקורסיבית על מערכים בתוך אובייקט הקלט, המנגנון מבצע בדיקת טיפוס מחמירה על מחרוזות בלבד:
+  בזמן ריצה רקורסיבית על מערכים בתוך אובייקט הקלט, המנגנון ביצע בדיקת טיפוס מחמירה על מחרוזות בלבד:
   ```javascript
   if (Array.isArray(val)) {
     cleaned[key] = val.map(item => typeof item === 'string' ? stripTags(item) : item);
   }
   ```
-  כאשר המערך מכיל אובייקטים מקוננים (כגון שאלונים מורכבים במבנה `[{ answer: "<script>..." }]`), האלמנט מוחזר כמות שהוא (`item`), והתגיות הזדוניות אינן מנוקות כלל.
-* **המלצה לתיקון במוצר:**
-  לקרוא רקורסיבית ל-`sanitizeObject(item)` עבור איברים במערך שאינם מחרוזות אך מהווים אובייקטים תקינים.
+  כאשר המערך הכיל אובייקטים מקוננים (כגון שאלונים מורכבים במבנה `[{ answer: "<script>..." }]`), האלמנט הוחזר כמות שהוא (`item`), והתגיות הזדוניות לא נוקו כלל.
+* **התיקון שבוצע:**
+  נוספה פונקציית עזר `sanitizeArray` שמטפלת רקורסיבית בכל איבר מערך: מחרוזת עוברת `stripTags`, מערך מקונן מטופל רקורסיבית, ואובייקט עובר `sanitizeObject`.
+  ```javascript
+  const sanitizeArray = (arr) =>
+    arr.map((item) => {
+      if (typeof item === "string") return stripTags(item);
+      if (Array.isArray(item)) return sanitizeArray(item);
+      if (item && typeof item === "object") return sanitizeObject(item);
+      return item;
+    });
+  ```
 
-### ממצא 2.2: חוסר אימות בעלות ביצירת אבחון (BOLA / IDOR)
+### ממצא 2.2: חוסר אימות בעלות ביצירת אבחון (BOLA / IDOR) — תוקן
 * **מיקום בקוד:** `functions/controllers/diagnosis.controller.js` (פונקציה `createDiagnosis`)
 * **סוג פגיעות:** Broken Object Level Authorization (BOLA / IDOR)
-* **בדיקה תואמת:** `functions/tests/integration/access-control.test.js` (`should prevent therapist from creating diagnosis for a child belonging to another therapist`)
+* **בדיקה תואמת:** `functions/tests/integration/access-control.test.js` (`should forbid therapist2 from opening a diagnosis for child c1 owned by therapist1`) - בדיקת `it` רגילה, עוברת.
 * **תיאור הכשל:**
-  בעת פנייה לנתיב `POST /diagnoses/create`, הבקר שולף את מזהה הילד (`childId`) מגוף הבקשה, אך אינו בודק האם המטפל המבצע את הפנייה (`req.user.uid`) הוא אכן המטפל המשויך לרשומת הילד ב-Firestore.
-  כתוצאה מכך, מטפל א' מסוגל לייצר תיק אבחון עבור מטופל השייך למטפל ב', תוך הפרת עקרון בידוד הדיירים (Multi-Tenant Isolation).
-* **המלצה לתיקון במוצר:**
-  לשלוף את מסמך הילד מ-`children` ולוודא כי `childDoc.data().therapistId === req.user.uid` טרם יצירת רשומת האבחון.
+  בעת פנייה לנתיב `POST /diagnoses/create`, הבקר שלף את מזהה הילד (`childId`) מגוף הבקשה, אך לא בדק האם המטפל המבצע את הפנייה (`req.user.uid`) הוא אכן המטפל המשויך לרשומת הילד ב-Firestore.
+  כתוצאה מכך, מטפל א' היה מסוגל לייצר תיק אבחון עבור מטופל השייך למטפל ב', תוך הפרת עקרון בידוד הדיירים (Multi-Tenant Isolation).
+* **התיקון שבוצע:**
+  נוספה בדיקת בעלות לפני הקריאה ל-`openInitialDiagnosis`: אם `childData.therapistId !== therapistId`, נשלפת גם רשומת המשתמש מ-`users/{uid}` ונבדק תפקידו - אם אינו `admin`, הבקשה נדחית עם 403.
 
-### ממצא 2.3: עקיפת נעילה של אבחון סגור (Lifecycle Integrity Bypass)
+### ממצא 2.3: עקיפת נעילה של אבחון סגור (Lifecycle Integrity Bypass) — תוקן
 * **מיקום בקוד:** `functions/controllers/report.controller.js` (פונקציה `openReportForEditing`)
 * **סוג פגיעות:** Business Logic Flaw / State Machine Violation
-* **בדיקה תואמת:** `functions/tests/integration/report-lifecycle.test.js` (`should reject unlocking report if diagnosis is already closed`)
+* **בדיקה תואמת:** `functions/tests/integration/report-lifecycle.test.js` (`should reject unlocking a report after diagnosis is officially closed`) - בדיקת `it` רגילה, עוברת.
 * **תיאור הכשל:**
-  נתיב `POST /reports/:diagnosisId/unlock` מאפשר החזרת דו"ח שננעל למצב עריכה. הבקר בודק האם הדו"ח עצמו קיים וננעל, אך אינו בודק את מצב תיק האבחון הכולל (`diagnosisDoc.data().closed === true`).
-  כתוצאה מכך, גם לאחר שתיק האבחון הושלם, אושר סופית וננעל לחלוטין (Final Closure), מטפל עדיין יכול לפתוח מחדש את הדו"ח לעריכה, בניגוד לכללי הרגולציה והיושרה של תיעוד רפואי/פסיכודידקטי.
-* **המלצה לתיקון במוצר:**
-  להוסיף בדיקה המוודאת ש-`diagnosis.closed !== true` טרם ביצוע ה-unlock.
+  נתיב `PUT /reports/:diagnosisId/unlock` איפשר החזרת דו"ח שננעל למצב עריכה. הבקר בדק האם הדו"ח עצמו קיים וננעל, אך לא בדק את מצב תיק האבחון הכולל (`diagnosisDoc.data().closed === true`).
+  כתוצאה מכך, גם לאחר שתיק האבחון הושלם, אושר סופית וננעל לחלוטין (Final Closure), מטפל היה עדיין יכול לפתוח מחדש את הדו"ח לעריכה, בניגוד לכללי הרגולציה והיושרה של תיעוד רפואי/פסיכודידקטי.
+* **התיקון שבוצע:**
+  נוספה שליפה של מסמך האבחון ובדיקה שאם `closed === true`, הבקשה נדחית עם 409 ו-"לא ניתן לפתוח דוח של אבחון שנסגר", לפני עדכון סטטוס הדוח.
 
 ---
 
 ## 3. פגמים בחוקי אבטחת אחסון (Cloud Storage Security Rules)
 
-### ממצא 3.1: היעדר חסימת דריסת קבצים קיימים ע"י הורים (File Overwrite Prevention)
+### ממצא 3.1: היעדר חסימת דריסת קבצים קיימים ע"י הורים (File Overwrite Prevention) — אומת מחדש, פתוח
+* **אימות מחדש:** הרצת `npm --prefix security-tests test` אימתה שהבדיקה `parent cannot overwrite existing file` נכשלת בפועל (34 בדיקות סה"כ, 33 עברו, 1 נכשלה) - הממצא תקף ולא שגוי. `storage.rules` לא שונו.
 * **מיקום:** `storage.rules`
 * **סוג פגיעות:** Data Integrity / Audit Tampering
 * **בדיקה תואמת:** `security-tests/rules.test.mjs` (`parent cannot overwrite existing file`)
@@ -130,7 +140,7 @@ const FALLBACK_PATTERNS = [
 | :--- | :--- | :--- | :--- |
 | **BUG-01** | `services/ai/deidentify.js` | כשל בגבולות מילים ותחיליות עבריות בהתממה | **תוקן בקוד** (מגובה ב-Unit Tests) |
 | **BUG-02** | `services/ai/deidentify.js` | כיסוי חסר בטלפונים ודוא"ל ברשת הביטחון | **תוקן בקוד** (מגובה ב-Unit Tests) |
-| **BUG-03** | `middleware/sanitize.middleware.js` | דילוג על אובייקטים מקוננים בתוך מערכים | **סומן `test.failing`** (מתועד) |
-| **BUG-04** | `controllers/diagnosis.controller.js` | היעדר אימות בעלות ביצירת אבחון (BOLA) | **סומן `test.failing`** (מתועד) |
-| **BUG-05** | `controllers/report.controller.js` | פתיחת דו"ח לעריכה בתיק אבחון סגור | **סומן `test.failing`** (מתועד) |
-| **BUG-06** | `storage.rules` | אפשרות לדריסת קבצים קיימים באחסון ע"י הורה | **נלכד בבדיקת אבטחה** (מתועד) |
+| **BUG-03** | `middleware/sanitize.middleware.js` | דילוג על אובייקטים מקוננים בתוך מערכים | **תוקן** (מגובה ב-Unit Tests) |
+| **BUG-04** | `controllers/diagnosis.controller.js` | היעדר אימות בעלות ביצירת אבחון (BOLA) | **תוקן** (מגובה ב-Integration Tests) |
+| **BUG-05** | `controllers/report.controller.js` | פתיחת דו"ח לעריכה בתיק אבחון סגור | **תוקן** (מגובה ב-Integration Tests) |
+| **BUG-06** | `storage.rules` | אפשרות לדריסת קבצים קיימים באחסון ע"י הורה | **פתוח** (אומת מחדש, לא תוקן) |
