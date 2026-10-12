@@ -1,4 +1,5 @@
 const { db, admin } = require("../config/firebase");
+const { FieldValue } = require("firebase-admin/firestore");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const pdfService = require("../services/pdf.service");
@@ -445,7 +446,7 @@ const resendSchoolInvitation = async (req, res) => {
       status: "pending", // חשוב: מחזיר את האפשרות לערוך אם זה היה completed
       draftData: null,
       lastCorrection: correctionEntry,
-      correctionHistory: admin.firestore.FieldValue.arrayUnion(correctionEntry),
+      correctionHistory: FieldValue.arrayUnion(correctionEntry),
     });
 
     // 3. שם פרטי של הילד/ה לנושא המייל (אם קיים)
@@ -474,8 +475,7 @@ const resendSchoolInvitation = async (req, res) => {
     } catch (mailErr) {
       console.error("ERROR sending school correction email:", mailErr);
       return res.status(502).json({
-        error:
-          "ההחזרה לתיקון נשמרה, אך שליחת המייל למורה נכשלה. נסי שוב.",
+        error: "ההחזרה לתיקון נשמרה, אך שליחת המייל למורה נכשלה. נסי שוב.",
       });
     }
 
@@ -607,7 +607,10 @@ const getInvitationByDiagnosis = async (req, res) => {
     let isAuthorized = access.ok;
 
     if (!isAuthorized && diagnosis.childId) {
-      const childDoc = await db.collection("children").doc(diagnosis.childId).get();
+      const childDoc = await db
+        .collection("children")
+        .doc(diagnosis.childId)
+        .get();
       if (childDoc.exists && childDoc.data().parentId === uid) {
         isAuthorized = true;
       }

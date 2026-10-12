@@ -699,7 +699,6 @@
 // // // exports.generateConsentFormPDFBuffer = async (doc) =>
 // // //   await htmlToPdfBuffer(generateConsentFormHTML(doc));
 
-
 // // // functions/services/pdf.service.js
 // // const htmlPdf = require("html-pdf-node");
 
@@ -2817,10 +2816,7 @@ const generateParentQuestionnaireHTML = (doc) => {
     "קשיי אכילה בשנה הראשונה?",
     f.development?.eatingIssuesFirstYear,
   );
-  html += infoRow(
-    "גיל גמילה מחיתולים",
-    f.development?.diaperGraduationAge,
-  );
+  html += infoRow("גיל גמילה מחיתולים", f.development?.diaperGraduationAge);
   html += `</table>`;
 
   html += `<h2>התנהגות ותפקוד בבית</h2><table class="info-table">`;
@@ -2844,10 +2840,7 @@ const generateParentQuestionnaireHTML = (doc) => {
     "זקוק/ה לתשומת לב רבה במיוחד?",
     f.currentProblems?.needsSpecialAttention,
   );
-  html += infoRow(
-    "תלותי/עצמאי",
-    f.currentProblems?.dependencyVsIndependence,
-  );
+  html += infoRow("תלותי/עצמאי", f.currentProblems?.dependencyVsIndependence);
   html += infoRow("אחר", f.currentProblems?.otherBehavioral);
   html += infoRow("למי קרוב יותר?", f.currentProblems?.closerToWho);
   html += `</table>`;
@@ -2859,10 +2852,7 @@ const generateParentQuestionnaireHTML = (doc) => {
     "קשרים חברתיים קרובים ומשמעותיים?",
     f.social?.meaningfulConnections,
   );
-  html += infoRow(
-    "קשרים עם בני המין השני?",
-    f.social?.oppositeSexConnections,
-  );
+  html += infoRow("קשרים עם בני המין השני?", f.social?.oppositeSexConnections);
   html += infoRow("בעיות חברתיות - פירוט", f.social?.socialProblemsDetails);
   html += `</table>`;
 
@@ -2906,11 +2896,11 @@ const SCHOOL_BEHAVIOR_LABELS = {
   "מפריע בשיעורים": "מפריע/ה בשיעורים",
   "אינו מגלה עניין בלימודים": "אינו/אינה מגלה עניין בלימודים",
   "נחבא אל הכלים – ביישן": "נחבא/ת אל הכלים – ביישן/ית",
-  "מתעקש": "מתעקש/ת",
-  "משקר": "משקר/ת",
-  "גונב": "גונב/ת",
+  מתעקש: "מתעקש/ת",
+  משקר: "משקר/ת",
+  גונב: "גונב/ת",
   "חסר מנוחה": "חסר/ת מנוחה",
-  "תלותי": "תלותי/ת",
+  תלותי: "תלותי/ת",
   "חסר בטחון עצמי": "חסר/ת בטחון עצמי",
 };
 
@@ -2937,11 +2927,13 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += infoRow("בית ספר", f.school);
   html += infoRow("שם המחנך/ת המדווח", doc.teacherName);
   html += infoRow("מייל המורה", doc.teacherEmail);
-  html += infoRow("טלפון", f.teacherPhone);
+  html += infoRow("טלפון מחנך/ת", f.teacherPhone);
   html += infoRow(
     "תאריך הגשה",
     doc.submittedAt
-      ? new Date(doc.submittedAt).toLocaleDateString("he-IL", { timeZone: IL_TZ })
+      ? new Date(doc.submittedAt).toLocaleDateString("he-IL", {
+          timeZone: IL_TZ,
+        })
       : "",
   );
   html += `</table>`;
@@ -2970,10 +2962,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
     "באיזו כיתה? / מה היו הסיבות לכך?",
     `${f.stayedGradeWhich || ""} ${f.stayedGradeReasons || ""}`.trim(),
   );
-  html += infoRow(
-    "ציונים בתעודה שקיבל/ה לאחרונה - בכיתה",
-    f.reportCardGrade,
-  );
+  html += infoRow("ציונים בתעודה שקיבל/ה לאחרונה - בכיתה", f.reportCardGrade);
   html += infoRow("במחצית", f.reportCardHalf);
   html += infoRow("שנת", f.reportCardYear);
   html += `</table>`;
@@ -2993,10 +2982,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += `<h2>יחסים והתנהגות כללית</h2><table class="info-table">`;
   html += infoRow("מה טיב יחסו/ה של התלמיד/ה אל המורים?", f.teacherRelation);
   html += infoRow("הערות", f.teacherRelationNotes);
-  html += infoRow(
-    "מה טיב יחסיו/ה של הילד/ה עם בני כיתתו/ה?",
-    f.peerRelation,
-  );
+  html += infoRow("מה טיב יחסיו/ה של הילד/ה עם בני כיתתו/ה?", f.peerRelation);
   html += infoRow(
     "אם קיימות בעיות בחברה, תאר/י אותן, באילו נסיבות הן מופיעות ומדוע?",
     f.peerProblems,
@@ -3005,10 +2991,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
   html += `<p style="font-weight:bold;margin:10px 0 5px;">הקף/י את המספר שמתאר באופן הטוב ביותר את התנהגות התלמיד/ה בבית הספר במהלך 6 החודשים האחרונים.</p>`;
   html += `<table class="info-table">`;
   html += infoRow("1. דעתו/ה מוסחת בקלות.", f.distractedEasily);
-  html += infoRow(
-    "2. מתקשה להתרכז במשימות או במשחקים.",
-    f.hardToFocus,
-  );
+  html += infoRow("2. מתקשה להתרכז במשימות או במשחקים.", f.hardToFocus);
   html += infoRow(
     "3. נע/ה מסתובב/ת או שמטפס/ת באופן מוגזם במצבים בהם הדבר אינו מתאים.",
     f.excessiveMovement,
@@ -3159,7 +3142,7 @@ const generateConsentFormHTML = (doc) => {
 
   html += renderConsentParentLine(registered, "הורה 1 (רשום/ה במערכת)");
   html += external
-    ? renderConsentParentLine(external, 'הורה 2 (הוזמן/ה באמצעות מייל)')
+    ? renderConsentParentLine(external, "הורה 2 (הוזמן/ה באמצעות מייל)")
     : `<p class="consent-pending">לא הוזמן הורה שני לטופס זה.</p>`;
 
   return wrapConsentFormDocument(html);
