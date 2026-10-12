@@ -29,9 +29,10 @@ export const SQ_LABELS = {
   },
 
   // שלב 3 - הישגים לימודיים
-  stayedGrade: { label: "האם נשאר/ה כיתה שנה נוספת?" },
-  stayedGradeWhich: { label: "באיזו כיתה?" },
-  stayedGradeReasons: { label: "מה היו הסיבות לכך?" },
+  specialNotes: {
+    label: "הערות מיוחדות",
+    hint: "(הצלחות, קשיים, סיבות להיעדרויות)",
+  },
   reportCardGrade: { label: "ציונים בתעודה שקיבל/ה לאחרונה - בכיתה" },
   reportCardHalf: { label: "במחצית" },
   reportCardYear: { label: "שנת" },

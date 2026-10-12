@@ -2285,12 +2285,8 @@ const SchoolSurveyView = ({ data }) => {
           value={formData.academicLevel}
         />
         <AnswerBox
-          label={SQ_LABELS.stayedGrade.label}
-          value={formData.stayedGrade}
-        />
-        <AnswerBox
-          label={`${SQ_LABELS.stayedGradeWhich.label} / ${SQ_LABELS.stayedGradeReasons.label}`}
-          value={`${formData.stayedGradeWhich || ""} ${formData.stayedGradeReasons || ""}`}
+          label={`${SQ_LABELS.specialNotes.label} ${SQ_LABELS.specialNotes.hint}`}
+          value={formData.specialNotes}
           wide
         />
 

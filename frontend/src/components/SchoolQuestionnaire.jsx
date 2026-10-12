@@ -1105,9 +1105,7 @@ const SchoolQuestionnaire = ({
       { grade: "", school: "" },
       { grade: "", school: "" },
     ],
-    stayedGrade: "",
-    stayedGradeWhich: "",
-    stayedGradeReasons: "",
+    specialNotes: "",
     reportCardGrade: "",
     reportCardHalf: "",
     reportCardYear: "",
@@ -1388,23 +1386,14 @@ const SchoolQuestionnaire = ({
               onClick={addSchoolHistoryRow}
               label="+ הוסף שורת בית ספר"
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-              <InputField
-                label={SQ_LABELS.stayedGrade.label}
-                value={formData.stayedGrade}
-                onChange={(v) => handleChange("stayedGrade", v)}
-              />
-              <InputField
-                label={SQ_LABELS.stayedGradeWhich.label}
-                value={formData.stayedGradeWhich}
-                onChange={(v) => handleChange("stayedGradeWhich", v)}
+            <div className="mt-6">
+              <TextAreaField
+                label={SQ_LABELS.specialNotes.label}
+                hint={SQ_LABELS.specialNotes.hint}
+                value={formData.specialNotes}
+                onChange={(v) => handleChange("specialNotes", v)}
               />
             </div>
-            <InputField
-              label={SQ_LABELS.stayedGradeReasons.label}
-              value={formData.stayedGradeReasons}
-              onChange={(v) => handleChange("stayedGradeReasons", v)}
-            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <InputField
                 label={SQ_LABELS.reportCardGrade.label}

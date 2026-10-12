@@ -136,9 +136,10 @@ const SECTION_QUESTIONNAIRE_FIELDS = {
       { field: "emotionalTreatmentDetails", label: "סוג הטיפול הרגשי" },
       { field: "specialEducation", label: "מסגרת חינוך מיוחד" },
       { field: "specialEdName", label: "שם הגן/כיתה" },
-      { field: "stayedGrade", label: "השארת כיתה" },
-      { field: "stayedGradeWhich", label: "כיתת ההשארה" },
-      { field: "stayedGradeReasons", label: "סיבת השארת הכיתה" },
+      {
+        field: "specialNotes",
+        label: "הערות מיוחדות של המחנך/ת (הצלחות, קשיים, היעדרויות)",
+      },
       { field: "studentSummary", label: "סיכום התרשמות המחנך/ת" },
       { field: "diagnosticQuestion", label: "שאלה אבחונית" },
     ],

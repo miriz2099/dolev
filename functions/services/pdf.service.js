@@ -2956,11 +2956,7 @@ const generateSchoolQuestionnaireHTML = (doc) => {
     "הערך/י את הישגיו/ה הלימודיים בהשוואה להישגי הכיתה:",
     f.academicLevel,
   );
-  html += infoRow("האם נשאר/ה כיתה שנה נוספת?", f.stayedGrade);
-  html += infoRow(
-    "באיזו כיתה? / מה היו הסיבות לכך?",
-    `${f.stayedGradeWhich || ""} ${f.stayedGradeReasons || ""}`.trim(),
-  );
+  html += infoRow("הערות מיוחדות (הצלחות, קשיים, סיבות להיעדרויות)", f.specialNotes);
   html += infoRow("ציונים בתעודה שקיבל/ה לאחרונה - בכיתה", f.reportCardGrade);
   html += infoRow("במחצית", f.reportCardHalf);
   html += infoRow("שנת", f.reportCardYear);
