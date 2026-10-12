@@ -160,21 +160,14 @@ describe("Access Control & Tenant Isolation Integration Tests (access-control.te
     });
   });
 
-  describe("Known Flaw: Missing Ownership Check in POST /diagnoses/create", () => {
-    // באג ידוע בקוד המוצר: ל-POST /diagnoses/create אין בדיקת בעלות,
-    // ולכן therapist2 מסוגל לפתוח אבחון לילד c1 שמשויך ל-therapist1.
-    // לפי עיקרון 2, הבדיקה מסומנת test.failing ומתועדת ב-BUGS_FOUND.md.
-    test.failing(
-      "should forbid therapist2 from opening a diagnosis for child c1 owned by therapist1 (BUG: missing ownership check in createDiagnosis)",
-      async () => {
-        const res = await request(app)
-          .post("/diagnoses/create")
-          .set("Authorization", `Bearer ${tokens.therapist2}`)
-          .send({ childId: "c1" });
+  describe("Ownership Check in POST /diagnoses/create", () => {
+    it("should forbid therapist2 from opening a diagnosis for child c1 owned by therapist1", async () => {
+      const res = await request(app)
+        .post("/diagnoses/create")
+        .set("Authorization", `Bearer ${tokens.therapist2}`)
+        .send({ childId: "c1" });
 
-        // Expected behavior according to spec: therapist2 should be forbidden
-        expect(res.status).toBe(403);
-      },
-    );
+      expect(res.status).toBe(403);
+    });
   });
 });

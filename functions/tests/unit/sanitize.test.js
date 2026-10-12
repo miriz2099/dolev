@@ -86,11 +86,8 @@ describe("Input Sanitization Middleware (sanitize.middleware.js)", () => {
       ]);
     });
 
-    // באג ידוע בקוד המוצר: sanitizeObject מנקה בתוך מערכים רק מחרוזות ישירות,
-    // אך מתעלם מאובייקטים המוכלים בתוך מערך.
-    // לפי עיקרון 2, הבדיקה מסומנת test.failing ומתועדת ב-BUGS_FOUND.md.
-    test.failing(
-      "should sanitize objects nested inside arrays within request body (BUG: sanitizeObject skips non-string array items)",
+    it(
+      "should sanitize objects nested inside arrays within request body",
       () => {
         const req = {
           body: {

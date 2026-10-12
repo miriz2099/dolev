@@ -136,24 +136,17 @@ describe("Report Lifecycle, Closing & PDF Export Integration Tests (report-lifec
       expect(repDoc.data().status).toBe("in_progress");
     });
 
-    // באג ידוע בקוד המוצר: openReportForEditing אינו בודק האם האבחון כבר סגור (closed === true),
-    // ומאפשר לפתוח מחדש דוח סגור.
-    // לפי עיקרון 2, הבדיקה מסומנת test.failing ומתועדת ב-BUGS_FOUND.md.
-    test.failing(
-      "should reject unlocking a report after diagnosis is officially closed (BUG: missing closed check in openReportForEditing)",
-      async () => {
-        await db.collection("diagnoses").doc("d1").update({
-          closed: true,
-          closedAt: new Date().toISOString(),
-        });
+    it("should reject unlocking a report after diagnosis is officially closed", async () => {
+      await db.collection("diagnoses").doc("d1").update({
+        closed: true,
+        closedAt: new Date().toISOString(),
+      });
 
-        const res = await request(app)
-          .put("/reports/d1/unlock")
-          .set("Authorization", `Bearer ${tokens.therapist1}`);
+      const res = await request(app)
+        .put("/reports/d1/unlock")
+        .set("Authorization", `Bearer ${tokens.therapist1}`);
 
-        // Required behavior according to spec: unlock rejected after close
-        expect([400, 403, 409]).toContain(res.status);
-      },
-    );
+      expect([400, 403, 409]).toContain(res.status);
+    });
   });
 });

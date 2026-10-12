@@ -2080,6 +2080,17 @@ const createDiagnosis = async (req, res) => {
       return res.status(404).json({ error: "Child not found" });
     const childData = childDoc.data();
 
+    // 🆕 אימות בעלות: רק אדמין או המאבחן/ת המשויך/ת לילד יכולים לפתוח אבחון
+    if (childData.therapistId !== therapistId) {
+      const userDoc = await db.collection("users").doc(therapistId).get();
+      const role = userDoc.exists ? userDoc.data().role : null;
+      if (role !== "admin") {
+        return res
+          .status(403)
+          .json({ error: "אין הרשאה לפתוח אבחון לילד זה" });
+      }
+    }
+
     const { diagnosisId, consentFormId } = await openInitialDiagnosis({
       childId,
       childData,

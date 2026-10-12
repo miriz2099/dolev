@@ -915,6 +915,14 @@ const openReportForEditing = async (req, res) => {
         .json({ error: "Unauthorized to edit this report" });
     }
 
+    // 🆕 לא ניתן לפתוח מחדש דוח של אבחון שנסגר רשמית
+    const diagDoc = await db.collection("diagnoses").doc(diagnosisId).get();
+    if (diagDoc.exists && diagDoc.data().closed === true) {
+      return res
+        .status(409)
+        .json({ error: "לא ניתן לפתוח דוח של אבחון שנסגר" });
+    }
+
     // מעדכנים את הסטטוס ל-in_progress באמצעות הרפרנס של המסמך שנמצא
     await reportDoc.ref.update({
       status: "in_progress",

@@ -15,15 +15,25 @@ const stripTags = (str) => {
     .trim();
 };
 
+// פריט שהוא מחרוזת עובר stripTags, פריט שהוא מערך מטופל רקורסיבית, ופריט
+// שהוא אובייקט עובר sanitizeObject - כדי שתגיות זדוניות בתוך אובייקטים/
+// מערכים מקוננים בתוך מערך (למשל [{ comment: "<script>..." }]) לא יישארו
+// ללא ניקוי.
+const sanitizeArray = (arr) =>
+  arr.map((item) => {
+    if (typeof item === "string") return stripTags(item);
+    if (Array.isArray(item)) return sanitizeArray(item);
+    if (item && typeof item === "object") return sanitizeObject(item);
+    return item;
+  });
+
 const sanitizeObject = (obj) => {
   const cleaned = {};
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === "string") {
       cleaned[key] = stripTags(value);
     } else if (Array.isArray(value)) {
-      cleaned[key] = value.map((item) =>
-        typeof item === "string" ? stripTags(item) : item
-      );
+      cleaned[key] = sanitizeArray(value);
     } else if (value && typeof value === "object") {
       cleaned[key] = sanitizeObject(value);
     } else {
