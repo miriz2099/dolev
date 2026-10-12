@@ -28,6 +28,7 @@ const RequiredAssessmentsManager = ({
   const [name, setName] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(90);
   const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
 
   const resetForm = () => {
     setName("");
@@ -113,6 +114,32 @@ const RequiredAssessmentsManager = ({
     }
   };
 
+  const handleCancelAppointment = async (assessment) => {
+    if (
+      !window.confirm(
+        "לבטל את התור? ההורה יקבל הודעה ויוכל לקבוע מועד חדש.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setCancellingId(assessment.id);
+      const token = await currentUser.getIdToken();
+      await therapistService.cancelAssessmentAppointment(
+        diagnosisId,
+        assessment.id,
+        token,
+      );
+      onChange?.();
+    } catch (err) {
+      console.error("Error cancelling appointment:", err);
+      alert(err.message || "שגיאה בביטול התור");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   // עזרי תצוגה לסטטוס
   const statusBadge = (status) => {
     const config = {
@@ -150,25 +177,26 @@ const RequiredAssessmentsManager = ({
         )}
       </div>
 
-      {/* 🆕 שורת מידע על מצב טופס ההסכמה - האם ההורה יכול כבר לקבוע תור */}
+      {/* 🆕 שורת מידע על מצב טופס ההסכמה - האם ההורה יכול כבר לקבוע תור,
+          ולידה כפתור בולט לפתיחת היומן (מוצג תמיד, בשני המצבים) */}
       <div
-        className={`mb-4 rounded-xl p-3 text-sm ${
+        className={`mb-4 rounded-xl p-3 text-sm flex items-center justify-between flex-wrap gap-3 ${
           consentStatus === "fully_signed"
             ? "bg-blue-50 border border-blue-100 text-blue-800"
             : "bg-amber-50 border border-amber-100 text-amber-800"
         }`}
       >
-        {consentStatus === "fully_signed" ? (
-          <>
-            ההורה יכול לבחור מועד מתוך שעות הזמינות שפתחת ב
-            <Link to="/diary" className="font-bold underline hover:no-underline">
-              יומן
-            </Link>
-            .
-          </>
-        ) : (
-          "ההורה יוכל לבחור מועדים אחרי שטופס ההסכמה ייחתם במלואו"
-        )}
+        <span>
+          {consentStatus === "fully_signed"
+            ? "ההורה יכול לבחור מועד מתוך שעות הזמינות שפתחת ביומן"
+            : "ההורה יוכל לבחור מועדים אחרי שטופס ההסכמה ייחתם במלואו"}
+        </span>
+        <Link
+          to="/diary"
+          className="inline-flex items-center gap-2 bg-white border border-blue-300 text-blue-700 font-bold px-4 py-2 rounded-xl hover:bg-blue-50 shadow-sm"
+        >
+          📅 פתיחת היומן לניהול זמינות
+        </Link>
       </div>
 
       {/* 🆕 האבחון סגור - אין אפשרות לשנות מפגשים */}
@@ -379,6 +407,16 @@ const RequiredAssessmentsManager = ({
                       title="מחקי"
                     >
                       🗑️ מחיקה
+                    </button>
+                  )}
+                  {isScheduled && !readOnly && (
+                    <button
+                      onClick={() => handleCancelAppointment(asm)}
+                      disabled={cancellingId === asm.id}
+                      className="bg-red-50 text-red-600 border border-red-100 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-all disabled:opacity-50"
+                      title="ביטול התור"
+                    >
+                      {cancellingId === asm.id ? "מבטל..." : "❌ ביטול התור"}
                     </button>
                   )}
                 </div>

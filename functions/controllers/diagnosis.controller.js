@@ -1794,94 +1794,14 @@ const { db } = require("../config/firebase");
 const { deleteDiagnosisCascade } = require("../helpers/cascade.helper");
 const pdfService = require("../services/pdf.service");
 const { openInitialDiagnosis } = require("../services/diagnosisCreation.service");
+const {
+  normalizeNaiveISO,
+  addMinutesToNaiveISO,
+  minutesDiffNaiveISO,
+  getCurrentNaiveISO,
+} = require("../helpers/time.helper");
 
 const SLOT_STEP_MINUTES = 30;
-
-// ============================================
-// Helpers - עבודה עם Naive ISO Strings
-// ============================================
-// הערה חשובה: כל ה-events במערכת נשמרים בפורמט naive ISO ("2026-05-10T09:00")
-// בלי timezone suffix. לכן אסור להשתמש ב-new Date() ו-toISOString() על
-// המחרוזות האלה - זה יוצר timezone shift לפי שעון השרת. במקום זה,
-// משתמשים ב-Date.UTC ובניית מחרוזת ידנית כדי לשמור על העקביות.
-
-/**
- * נורמליזציה של naive ISO לפורמט אחיד "YYYY-MM-DDTHH:MM:SS"
- * מטפל במקרים: "2026-05-10T17:30" => "2026-05-10T17:30:00"
- * חיוני להשוואות string-based שיהיו עקביות (למשל availability עם 16 תווים
- * vs slot מחושב עם 19 תווים)
- */
-const normalizeNaiveISO = (isoStr) => {
-  if (!isoStr) return isoStr;
-  const [datePart, timePart] = isoStr.split("T");
-  const parts = timePart.split(":");
-  const hh = parts[0].padStart(2, "0");
-  const mm = parts[1].padStart(2, "0");
-  const ss = parts[2] ? parts[2].padStart(2, "0") : "00";
-  return `${datePart}T${hh}:${mm}:${ss}`;
-};
-
-/**
- * הוספת דקות ל-naive ISO string
- * "2026-05-10T09:00" + 90 דקות => "2026-05-10T10:30:00"
- */
-const addMinutesToNaiveISO = (isoStr, minutesToAdd) => {
-  const [datePart, timePart] = isoStr.split("T");
-  const [year, month, day] = datePart.split("-").map(Number);
-  const timeParts = timePart.split(":");
-  const hours = parseInt(timeParts[0], 10);
-  const minutes = parseInt(timeParts[1], 10);
-  const seconds = timeParts[2] ? parseInt(timeParts[2], 10) : 0;
-
-  // משתמשים ב-Date.UTC כדי למנוע timezone shift של השרת
-  const utcMs = Date.UTC(year, month - 1, day, hours, minutes, seconds);
-  const newUtcMs = utcMs + minutesToAdd * 60 * 1000;
-
-  // בנייה ידנית של מחרוזת naive ISO ללא Z
-  const d = new Date(newUtcMs);
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mn = String(d.getUTCMinutes()).padStart(2, "0");
-  const ss = String(d.getUTCSeconds()).padStart(2, "0");
-
-  return `${yyyy}-${mm}-${dd}T${hh}:${mn}:${ss}`;
-};
-
-/**
- * חישוב הפרש בדקות בין 2 naive ISO strings
- * minutesDiffNaiveISO("...T10:30", "...T09:00") = 90
- */
-const minutesDiffNaiveISO = (laterISO, earlierISO) => {
-  const toUtcMs = (iso) => {
-    const [datePart, timePart] = iso.split("T");
-    const [y, m, d] = datePart.split("-").map(Number);
-    const tp = timePart.split(":");
-    return Date.UTC(
-      y,
-      m - 1,
-      d,
-      parseInt(tp[0], 10),
-      parseInt(tp[1], 10),
-      tp[2] ? parseInt(tp[2], 10) : 0,
-    );
-  };
-  return (toUtcMs(laterISO) - toUtcMs(earlierISO)) / (60 * 1000);
-};
-
-/**
- * החזרת הזמן הנוכחי כ-naive ISO לפי timezone ישראל
- * (כי ה-events נשמרים לפי שעון מקומי ישראלי)
- */
-const getCurrentNaiveISO = () => {
-  const now = new Date();
-  // sv-SE format: "2026-05-10 16:30:45"
-  const israelTimeStr = now.toLocaleString("sv-SE", {
-    timeZone: "Asia/Jerusalem",
-  });
-  return israelTimeStr.replace(" ", "T");
-};
 
 /**
  * פורמט תאריך לעברית להצגה בהודעה
@@ -1997,6 +1917,44 @@ const validateSlotAvailability = async (therapistId, start, end) => {
   }
 
   return { valid: true };
+};
+
+/**
+ * עזר משותף: איפוס מפגש אבחון מ-"scheduled" חזרה ל-"pending" (ביטול תור),
+ * כדי שלא יהיו שני מימושים לאותה לוגיקה - בשימוש גם מ-
+ * cancelAssessmentAppointment (כאן) וגם מ-diary.controller.js (מחיקת event
+ * מהיומן שמשויך למפגש).
+ *
+ * eventId (אופציונלי): אם מועבר, מאפסים רק אם scheduledEventId === eventId -
+ * חשוב כשה-event נמחק דרך היומן, כדי לא לאפס מפגש אחר בטעות.
+ *
+ * מחזיר null אם לא נמצא מפגש מתאים לאיפוס, אחרת { updatedAssessments, assessment }.
+ */
+const resetScheduledAssessment = (assessments, assessmentId, { cancelledBy, eventId } = {}) => {
+  const idx = assessments.findIndex((a) => a.id === assessmentId);
+  if (idx === -1) return null;
+
+  const assessment = assessments[idx];
+  if (assessment.status !== "scheduled" || !assessment.scheduledEventId) {
+    return null;
+  }
+  if (eventId && assessment.scheduledEventId !== eventId) {
+    return null;
+  }
+
+  const updatedAssessments = [...assessments];
+  updatedAssessments[idx] = {
+    ...assessment,
+    status: "pending",
+    scheduledEventId: null,
+    scheduledAt: null,
+    scheduledStart: null,
+    scheduledEnd: null,
+    cancelledAt: new Date().toISOString(),
+    cancelledBy,
+  };
+
+  return { updatedAssessments, assessment };
 };
 
 // ============================================
@@ -2765,6 +2723,7 @@ const getAvailableSlots = async (req, res) => {
     }
 
     // אם כבר נקבע תור - להחזיר אותו במקום slots
+    let effectiveAssessment = assessment;
     if (assessment.status === "scheduled" && assessment.scheduledEventId) {
       const eventDoc = await db
         .collection("diary_events")
@@ -2778,9 +2737,24 @@ const getAvailableSlots = async (req, res) => {
           slots: [],
         });
       }
+
+      // 🆕 תיקון עצמי: ה-event נמחק (למשל ישירות מהיומן) אבל המפגש נשאר
+      // "scheduled" - מאפסים ל-pending במסד וממשיכים לחשב מועדים כרגיל
+      const reset = resetScheduledAssessment(assessments, assessment.id, {
+        cancelledBy: "system",
+      });
+      if (reset) {
+        await db.collection("diagnoses").doc(diagnosisId).update({
+          requiredAssessments: reset.updatedAssessments,
+          updatedAt: new Date().toISOString(),
+        });
+        effectiveAssessment = reset.updatedAssessments.find(
+          (a) => a.id === assessment.id,
+        );
+      }
     }
 
-    if (assessment.status === "completed") {
+    if (effectiveAssessment.status === "completed") {
       return res.status(200).json({
         completed: true,
         slots: [],
@@ -2805,19 +2779,27 @@ const getAvailableSlots = async (req, res) => {
       // מתעלמים מאירועים שנגמרו - השוואת strings אחרי נורמליזציה
       if (normalizeNaiveISO(ev.end) <= nowISO) return;
 
+      // 🆕 נורמליזציה של start/end לפני החיתוך וההשוואות
+      const normalizedEv = {
+        ...ev,
+        start: normalizeNaiveISO(ev.start),
+        end: normalizeNaiveISO(ev.end),
+      };
+
       if (ev.type === "availability") {
-        availabilities.push(ev);
+        availabilities.push(normalizedEv);
       } else if (ev.type === "appointment") {
-        appointments.push(ev);
+        appointments.push(normalizedEv);
       }
     });
 
-    const allSlots = [];
+    // 🆕 Map לפי start - זמינויות חופפות שמייצרות את אותו slot מוחזרות פעם אחת
+    const slotsByStart = new Map();
     for (const avail of availabilities) {
       const windows = sliceAvailabilityIntoWindows(
         avail.start,
         avail.end,
-        assessment.durationMinutes,
+        effectiveAssessment.durationMinutes,
       );
 
       for (const window of windows) {
@@ -2829,25 +2811,27 @@ const getAvailableSlots = async (req, res) => {
           continue;
         }
 
-        allSlots.push({
-          start: window.start,
-          end: window.end,
-          availabilityId: avail.id,
-        });
+        if (!slotsByStart.has(window.start)) {
+          slotsByStart.set(window.start, {
+            start: window.start,
+            end: window.end,
+            availabilityId: avail.id,
+          });
+        }
       }
     }
 
     // מיון - השוואת strings (naive ISO chronological)
-    allSlots.sort((a, b) =>
+    const allSlots = Array.from(slotsByStart.values()).sort((a, b) =>
       a.start < b.start ? -1 : a.start > b.start ? 1 : 0,
     );
 
     res.status(200).json({
       assessment: {
-        id: assessment.id,
-        name: assessment.name,
-        durationMinutes: assessment.durationMinutes,
-        status: assessment.status,
+        id: effectiveAssessment.id,
+        name: effectiveAssessment.name,
+        durationMinutes: effectiveAssessment.durationMinutes,
+        status: effectiveAssessment.status,
       },
       slots: allSlots,
       totalSlots: allSlots.length,
@@ -2943,12 +2927,43 @@ const bookAssessmentAppointment = async (req, res) => {
     }
 
     // === FIRESTORE TRANSACTION - יצירת event + עדכון assessment ===
+    const normStart = normalizeNaiveISO(start);
+    const normEnd = normalizeNaiveISO(end);
+
     const result = await db.runTransaction(async (transaction) => {
       const diagRef = db.collection("diagnoses").doc(diagnosisId);
       const diagSnap = await transaction.get(diagRef);
 
       if (!diagSnap.exists) {
         throw { statusCode: 404, message: "האבחון לא נמצא" };
+      }
+
+      // 🆕 מניעת תור כפול בין הורים שונים (אבחונים שונים) לאותה מאבחנת/אותה
+      // שעה: קוראים (לפני כל write) lock doc ואת כל ה-appointments של
+      // המאבחנת, כדי שההשוואה תהיה חלק מהעסקה - אם מישהי אחרת תזכה בתור
+      // באותו רגע, ה-transaction הזה יתבצע מחדש (retry) ויתפוס את ההתנגשות
+      const lockRef = db.collection("therapist_locks").doc(therapistId);
+      await transaction.get(lockRef);
+
+      const therapistAppointmentsSnap = await transaction.get(
+        db
+          .collection("diary_events")
+          .where("therapistId", "==", therapistId)
+          .where("type", "==", "appointment"),
+      );
+
+      const hasConflict = therapistAppointmentsSnap.docs.some((doc) => {
+        const ev = doc.data();
+        const evStart = normalizeNaiveISO(ev.start);
+        const evEnd = normalizeNaiveISO(ev.end);
+        return normStart < evEnd && evStart < normEnd;
+      });
+
+      if (hasConflict) {
+        throw {
+          statusCode: 409,
+          message: "השעה נתפסה הרגע – אנא בחרי שעה אחרת",
+        };
       }
 
       const freshDiagData = diagSnap.data();
@@ -2972,8 +2987,8 @@ const bookAssessmentAppointment = async (req, res) => {
         therapistId,
         type: "appointment",
         title: `${freshAssessment.name} - ${childData.firstName} ${childData.lastName}`,
-        start,
-        end,
+        start: normStart,
+        end: normEnd,
         description: `נקבע ע"י ההורה דרך מערכת התיאום`,
         childId,
         childName: `${childData.firstName} ${childData.lastName}`,
@@ -2984,6 +2999,11 @@ const bookAssessmentAppointment = async (req, res) => {
       };
 
       transaction.set(newEventRef, eventData);
+      transaction.set(
+        lockRef,
+        { updatedAt: new Date().toISOString() },
+        { merge: true },
+      );
 
       // עדכון ה-assessment - שמירת התאריך והשעה ישירות לתצוגה מהירה
       const updatedAssessments = [...freshAssessments];
@@ -2992,8 +3012,8 @@ const bookAssessmentAppointment = async (req, res) => {
         status: "scheduled",
         scheduledEventId: newEventRef.id,
         scheduledAt: new Date().toISOString(), // מתי ההזמנה בוצעה
-        scheduledStart: start, // 🆕 שעת התחלת התור
-        scheduledEnd: end, // 🆕 שעת סיום התור
+        scheduledStart: normStart, // 🆕 שעת התחלת התור
+        scheduledEnd: normEnd, // 🆕 שעת סיום התור
       };
 
       transaction.update(diagRef, {
@@ -3078,6 +3098,15 @@ const cancelAssessmentAppointment = async (req, res) => {
       return res.status(409).json({ error: "אין תור פעיל לביטול" });
     }
 
+    // עזר משותף עם diary.controller.js (מחיקת event מהיומן) - ראה הגדרתו למעלה
+    const reset = resetScheduledAssessment(assessments, assessmentId, {
+      cancelledBy: isParent ? "parent" : "therapist",
+    });
+    if (!reset) {
+      return res.status(409).json({ error: "אין תור פעיל לביטול" });
+    }
+    const { updatedAssessments } = reset;
+
     const batch = db.batch();
 
     // 1. מחיקת ה-event
@@ -3087,18 +3116,6 @@ const cancelAssessmentAppointment = async (req, res) => {
     batch.delete(eventRef);
 
     // 2. החזרת ה-assessment ל-pending - ניקוי כל שדות התור
-    const updatedAssessments = [...assessments];
-    updatedAssessments[idx] = {
-      ...assessment,
-      status: "pending",
-      scheduledEventId: null,
-      scheduledAt: null,
-      scheduledStart: null, // 🆕 ניקוי
-      scheduledEnd: null, // 🆕 ניקוי
-      cancelledAt: new Date().toISOString(),
-      cancelledBy: isParent ? "parent" : "therapist",
-    };
-
     const diagRef = db.collection("diagnoses").doc(diagnosisId);
     batch.update(diagRef, {
       requiredAssessments: updatedAssessments,
@@ -3293,4 +3310,5 @@ module.exports = {
 
   // Helpers (אם תרצי להשתמש בהם בקבצים אחרים)
   formatDateForMessage,
+  resetScheduledAssessment,
 };

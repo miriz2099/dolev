@@ -74,30 +74,31 @@
 
 // functions/controllers/diary.controller.js
 const { db } = require("../config/firebase");
+const { normalizeNaiveISO, addMinutesToNaiveISO } = require("../helpers/time.helper");
+const { resetScheduledAssessment } = require("./diagnosis.controller");
 
 /**
- * Helper: בדיקת חפיפה בין שני טווחי זמן
+ * Helper: בדיקת חפיפה בין שני טווחי זמן - משווה naive ISO strings אחרי
+ * נורמליזציה, ולא new Date() (שגורם ל-timezone shift לפי שעון השרת)
  */
 const hasOverlap = (start1, end1, start2, end2) => {
-  return new Date(start1) < new Date(end2) && new Date(start2) < new Date(end1);
+  const s1 = normalizeNaiveISO(start1);
+  const e1 = normalizeNaiveISO(end1);
+  const s2 = normalizeNaiveISO(start2);
+  const e2 = normalizeNaiveISO(end2);
+  return s1 < e2 && s2 < e1;
 };
 
 /**
  * Helper: בדיקת קונפליקטים מול אירועים קיימים
- * מחזיר את האירוע המתנגש אם נמצא, אחרת null
+ * מחזיר את האירוע המתנגש אם נמצא, אחרת null.
+ * שולף את כל האירועים של המאבחנת ומסנן בזיכרון עם השוואת מחרוזות
+ * מנורמלות - אין query לפי טווח יום, כדי לא להישען על new Date/toISOString.
  */
 const findConflict = async (therapistId, start, end, excludeId = null) => {
-  // שולפים את כל האירועים של המאבחן ביום הזה (אופטימיזציה)
-  const dayStart = new Date(start);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(start);
-  dayEnd.setHours(23, 59, 59, 999);
-
   const snapshot = await db
     .collection("diary_events")
     .where("therapistId", "==", therapistId)
-    .where("start", ">=", dayStart.toISOString())
-    .where("start", "<=", dayEnd.toISOString())
     .get();
 
   for (const doc of snapshot.docs) {
@@ -169,8 +170,8 @@ const createEvent = async (req, res) => {
         therapistId,
         type: "appointment",
         title,
-        start,
-        end,
+        start: normalizeNaiveISO(start),
+        end: normalizeNaiveISO(end),
         description: description || "",
         childId,
         childName: `${childData.firstName} ${childData.lastName}`,
@@ -187,8 +188,8 @@ const createEvent = async (req, res) => {
         therapistId,
         type: "note",
         title,
-        start,
-        end,
+        start: normalizeNaiveISO(start),
+        end: normalizeNaiveISO(end),
         description: description || "",
         createdAt: new Date().toISOString(),
       };
@@ -212,8 +213,8 @@ const createEvent = async (req, res) => {
           therapistId,
           type: "availability",
           title,
-          start,
-          end,
+          start: normalizeNaiveISO(start),
+          end: normalizeNaiveISO(end),
           description: description || "",
           isRecurring: false,
           createdAt: new Date().toISOString(),
@@ -228,21 +229,20 @@ const createEvent = async (req, res) => {
       const createdEvents = [];
       const conflicts = [];
 
-      for (let i = 0; i < WEEKS_AHEAD; i++) {
-        const occStart = new Date(start);
-        occStart.setDate(occStart.getDate() + i * 7);
-        const occEnd = new Date(end);
-        occEnd.setDate(occEnd.getDate() + i * 7);
+      // 🆕 חישוב כל הופעה כ-naive ISO (הוספת דקות, לא new Date/setDate) -
+      // כך השעה נשארת זהה (למשל 09:00) גם אחרי מעבר שעון חורף/קיץ
+      const normStart = normalizeNaiveISO(start);
+      const normEnd = normalizeNaiveISO(end);
 
-        const conflict = await findConflict(
-          therapistId,
-          occStart.toISOString(),
-          occEnd.toISOString()
-        );
+      for (let i = 0; i < WEEKS_AHEAD; i++) {
+        const occStart = addMinutesToNaiveISO(normStart, i * 7 * 24 * 60);
+        const occEnd = addMinutesToNaiveISO(normEnd, i * 7 * 24 * 60);
+
+        const conflict = await findConflict(therapistId, occStart, occEnd);
         if (conflict) {
           conflicts.push({
             week: i + 1,
-            date: occStart.toISOString(),
+            date: occStart,
             conflictWith: conflict.title,
           });
         }
@@ -259,18 +259,16 @@ const createEvent = async (req, res) => {
       // אין קונפליקטים - יוצרים את כל הסדרה ב-batch (יעיל יותר)
       const batch = db.batch();
       for (let i = 0; i < WEEKS_AHEAD; i++) {
-        const occStart = new Date(start);
-        occStart.setDate(occStart.getDate() + i * 7);
-        const occEnd = new Date(end);
-        occEnd.setDate(occEnd.getDate() + i * 7);
+        const occStart = addMinutesToNaiveISO(normStart, i * 7 * 24 * 60);
+        const occEnd = addMinutesToNaiveISO(normEnd, i * 7 * 24 * 60);
 
         const docRef = db.collection("diary_events").doc();
         const eventData = {
           therapistId,
           type: "availability",
           title,
-          start: occStart.toISOString(),
-          end: occEnd.toISOString(),
+          start: occStart,
+          end: occEnd,
           description: description || "",
           isRecurring: true,
           recurrenceGroupId,
@@ -307,7 +305,13 @@ const getEvents = async (req, res) => {
 
     const events = [];
     snapshot.forEach((doc) => {
-      events.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      events.push({
+        id: doc.id,
+        ...data,
+        start: normalizeNaiveISO(data.start),
+        end: normalizeNaiveISO(data.end),
+      });
     });
 
     res.status(200).json(events);
@@ -353,6 +357,63 @@ const deleteEvent = async (req, res) => {
       return res.status(200).json({
         message: `נמחקה סדרה של ${seriesSnapshot.size} אירועים`,
       });
+    }
+
+    // 🆕 אם זה תור שנקבע למפגש אבחון - מבטלים אותו באותו batch: מחיקת
+    // האירוע + איפוס המפגש ל-pending (בדיוק כמו ב-cancelAssessmentAppointment,
+    // דרך הפונקציה המשותפת) + הודעה להורה
+    const eventData = eventDoc.data();
+    if (
+      eventData.type === "appointment" &&
+      eventData.diagnosisId &&
+      eventData.assessmentId
+    ) {
+      const batch = db.batch();
+      batch.delete(eventRef);
+
+      const diagRef = db.collection("diagnoses").doc(eventData.diagnosisId);
+      const diagDoc = await diagRef.get();
+
+      if (diagDoc.exists) {
+        const assessments = diagDoc.data().requiredAssessments || [];
+        const reset = resetScheduledAssessment(
+          assessments,
+          eventData.assessmentId,
+          { cancelledBy: "therapist", eventId },
+        );
+
+        if (reset) {
+          batch.update(diagRef, {
+            requiredAssessments: reset.updatedAssessments,
+            updatedAt: new Date().toISOString(),
+          });
+
+          const childDoc = await db
+            .collection("children")
+            .doc(eventData.childId)
+            .get();
+          const parentId = childDoc.exists
+            ? childDoc.data().parentId
+            : null;
+
+          if (parentId) {
+            const msgRef = db.collection("messages").doc();
+            batch.set(msgRef, {
+              senderId: therapistId,
+              receiverId: parentId,
+              childId: eventData.childId,
+              text: `התור ל-${reset.assessment.name} עבור ${
+                eventData.childName || "הילד/ה"
+              } בוטל על ידי המאבחנת. ניתן לקבוע תור חדש.`,
+              read: false,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      await batch.commit();
+      return res.status(200).json({ message: "האירוע נמחק" });
     }
 
     // מחיקת אירוע יחיד

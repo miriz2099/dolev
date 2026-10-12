@@ -282,9 +282,13 @@ const EventFormModal = ({
 
   // === מחיקה (במצב צפייה) ===
   const handleDelete = async (deleteSeries = false) => {
+    const isScheduledAppointment =
+      eventData.type === "appointment" && eventData.assessmentId;
     const confirmMsg = deleteSeries
       ? "למחוק את כל סדרת הזמינויות החוזרות?"
-      : "למחוק את האירוע הזה?";
+      : isScheduledAppointment
+        ? "לבטל את התור? ההורה יקבל הודעה והמפגש יחזור לתיאום."
+        : "למחוק את האירוע הזה?";
     if (!window.confirm(confirmMsg)) return;
 
     try {
@@ -379,7 +383,9 @@ const EventFormModal = ({
               disabled={loading}
               className="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition-all disabled:bg-gray-400"
             >
-              🗑️ מחק
+              {eventData.type === "appointment" && eventData.assessmentId
+                ? "ביטול התור (ההורה יקבל הודעה)"
+                : "🗑️ מחק"}
             </button>
             {eventData.isRecurring && (
               <button
