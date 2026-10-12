@@ -32,6 +32,7 @@ service firebase.storage {
       // upload: only the child's parent, up to 10 MB, PDF or image only
       // (the file input accepts .pdf,.jpg,.jpeg,.png)
       allow create: if isParentOf(childId)
+                    && resource == null
                     && request.resource.size < 10 * 1024 * 1024
                     && request.resource.contentType.matches('application/pdf|image/(jpeg|png)');
       // read (incl. getDownloadURL right after upload): the parent or staff
