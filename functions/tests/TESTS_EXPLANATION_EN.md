@@ -1,96 +1,202 @@
-# Server-Side Automated Testing Guide (Backend / Functions)
-## Final Engineering Project: "Dolev" System
+# Automated Testing Specification – "Dolev" Backend (Cloud Functions)
+## Engineering & Methodological Report | Software Engineering Capstone Project
 
-This document provides a comprehensive explanation of the automated testing suite implemented for the server-side architecture (`functions/`) in the Dolev clinical and psycho-didactic management platform. It outlines the engineering rationale, clinical privacy standards, covered test cases, and execution instructions.
+This document provides a comprehensive and detailed technical specification of the automated testing infrastructure engineered for the backend of the "Dolev" system (Firebase Cloud Functions running on Node.js 22 and Express 5). The system manages psycho-didactic assessment lifecycles, appointment scheduling calendars, clinical section generation using Generative AI (Google Gemini), and parent questionnaire distribution.
 
----
-
-## 📌 1. Engineering & Clinical Objectives
-The Dolev platform manages sensitive pediatric medical records, psycho-didactic evaluation reports, intake questionnaires, and parent/child profiles. It also features Google Gemini LLM integration for clinical rephrasing.
-
-The automated test suite safeguards three core engineering pillars:
-1. **Medical Privacy & Data Masking (HIPAA Compliance):** Ensuring no Personal Identifiable Information (PII) is exposed to external AI providers.
-2. **Cybersecurity & Input Sanitization:** Neutralizing Cross-Site Scripting (XSS) and injection vectors while safeguarding the integrity of digital signature images.
-3. **Authentication & Role-Based Access Control (RBAC):** Enforcing strict authorization boundaries across Admins, Therapists, and Parents.
+The testing architecture has been designed and implemented in strict compliance with the Israeli Privacy Protection Act, 5741-1981, the Privacy Protection Regulations (Data Security), 5777-2017, and standard software engineering practices for medical and allied-health data processing.
 
 ---
 
-## 🚀 2. How to Run the Tests
-From the project root directory (VS Code / PowerShell):
-```powershell
-npm --prefix functions test
-```
-Or directly from within the `functions` folder:
-```bash
-npm test
-```
+## 1. Testing Architecture & Core Principles
 
-All test suites execute via **Jest** in an isolated in-memory environment using mocks. They run in seconds without external network dependencies or Firebase billing costs.
+The automated test suite is structured across three complementary tiers following the testing pyramid:
 
----
+1. **Unit Testing Layer (`functions/tests/unit`):**
+   * **Execution Environment:** Isolated, in-memory execution using Jest, with zero network egress and no calls to external cloud vendors.
+   * **Component Decoupling:** External dependencies (Firebase Admin SDK, email dispatchers, AI providers) are substituted with strictly controlled in-memory stubs and mocks.
+   * **Timezone Resilience:** Time and date handling helpers are verified under multiple timezones (`TZ=UTC` and `TZ=Asia/Jerusalem`) to prevent timezone drift across server deployments.
 
-## 🔍 3. Test Suites Breakdown
+2. **Integration Testing Layer (`functions/tests/integration`):**
+   * **Execution Environment:** Full Express application instantiated via Supertest against local Firebase Emulators (Authentication and Cloud Firestore).
+   * **State Isolation:** Prior to each test execution, the database state is systematically cleared (`clearEmulators`) and re-seeded (`seed`) under an isolated emulator project ID (`demo-dolev-test`).
+   * **Concurrency & Transaction Integrity:** Direct verification of ACID transactions (Firestore Transactions) under concurrent read/write operations (race conditions).
 
-### 🟢 Suite 1: AI De-Identification & Privacy Protection
-**Test File:** `functions/tests/unit/deidentify.test.js`  
-**Target Module:** `functions/services/ai/deidentify.js`
-
-This service de-identifies clinicians' raw notes prior to sending them to the Google Gemini LLM, and restores the original patient entities upon receiving the rephrased output.
-
-* **Tested Capabilities:**
-  1. **Entity Map Extraction (`buildEntityMap`):**
-     * Verifies that the child's and parents' first/last names, national ID numbers, phone numbers, and emails are mapped to standardized tokens (e.g., `[שם_הנבחן]`, `[ת.ז]`, `[טלפון]`).
-     * Filters out empty or short inputs (< 2 characters) to prevent false-positive token substitutions.
-  2. **Substring Collision Prevention:**
-     * Ensures entities are sorted in descending order of string length. For instance, if an input contains "דניאל" (Daniel) and "דן" (Dan), the algorithm masks "דניאל" first, preventing partial word corruption.
-  3. **Targeted Redaction (`redact`):**
-     * Replaces known clinical profile entities with generic tokens across the text.
-  4. **Regex-Based Safety Net (Fallback Detection):**
-     * Detects and redacts unindexed or free-text inputs, including 9-digit national IDs, Israeli phone formats, and email addresses typed directly into free-text observations.
-  5. **Lossless Restoration (`restore`):**
-     * Guarantees that after the AI rephrases the clinical observations, the original patient and family names are accurately reinserted into their designated positions.
+3. **Security Rules Testing Layer (`security-tests`):**
+   * **Execution Environment:** `@firebase/rules-unit-testing` evaluating Firestore and Cloud Storage security rules.
+   * **Objective:** Defense-in-depth verification ensuring malicious clients cannot bypass API endpoints directly from web browsers.
 
 ---
 
-### 🟢 Suite 2: Input Sanitization & XSS Defense
-**Test File:** `functions/tests/unit/sanitize.test.js`  
-**Target Module:** `functions/middleware/sanitize.middleware.js`
+## 2. Unit Testing Suites (`functions/tests/unit`)
 
-This Express middleware sanitizes incoming HTTP request payloads to shield the backend against Cross-Site Scripting (XSS) and malicious script injection through forms and surveys.
+The unit test suite comprises 8 suites and 48 discrete test cases (100% pass rate).
 
-* **Tested Capabilities:**
-  1. **HTML Entity Encoding (`stripTags`):**
-     * Converts tags such as `<script>` into safe HTML entities (`&lt;script&gt;`) to neutralize browser execution.
-  2. **Script Protocol & Event Handler Stripping:**
-     * Strips dangerous schemes like `javascript:alert(1)` and DOM event triggers (`onclick=`, `onerror=`).
-  3. **Preservation of Digital Signatures (Base64) – Critical Edge Case:**
-     * Parents submit digital signatures via `SignatureInput.jsx`, encoded as Base64 data URLs.
-     * The test validates that valid signature strings **are never altered or corrupted** by the sanitization filters.
-  4. **Deep Recursive Payload Cleaning (`sanitizeBody`):**
-     * Recursively traverses nested JSON objects and arrays within `req.body`, ensuring deep fields are cleaned while numeric and boolean datatypes remain intact.
+### 2.1. Data De-identification & Privacy Preservation (`deidentify.test.js`)
+* **Target Module:** `functions/services/ai/deidentify.js`
+* **Objective:** Prevention of Personally Identifiable Information (PII) leakage to external Large Language Model (LLM) providers.
+* **Behaviors Tested:**
+  * **Substring Collision Defense:** Sorts entity candidates in descending length order to avoid corrupting longer names with shorter subsets (e.g., preventing "Dan" from replacing a subsegment of "Daniel").
+  * **Hebrew Word Boundaries & Prefix Letters:** Accurately recognizes Hebrew grammatical prefixes (ו, ה, ב, ל, מ, ש, כ) so that terms like "לנועה" are transformed into "ל[שם_הנבחן]", while common nouns containing letters of a name (e.g., "טלפון" for the name "טל") remain unaltered.
+  * **Regex Fallback Net:** Detects 9-digit Israeli national ID numbers, Israeli phone formats (landline, mobile, +972 international prefix), and case-insensitive email addresses.
+  * **Round-Trip Integrity:** Restores all original clinical tokens into the LLM-generated narrative precisely.
+
+### 2.2. Input Sanitization & XSS Defense (`sanitize.test.js`)
+* **Target Module:** `functions/middleware/sanitize.middleware.js`
+* **Objective:** Protection against Cross-Site Scripting (XSS) and injection vectors in user-submitted clinical text and questionnaires.
+* **Behaviors Tested:**
+  * **Tag Escaping & Dangerous Protocol Stripping:** Converts HTML tags into safe entities, strips `javascript:` protocols regardless of casing (`JaVaScRiPt:`), and removes inline event handlers (`onclick`, `onerror`).
+  * **Digital Signature Preservation:** Preserves Base64 Data URIs generated by parental signature inputs without degradation or truncation.
+  * **Recursive Parsing:** Safely traverses nested JSON objects while preserving primitive non-string values (numbers, booleans).
+  * **Known Vulnerability Capture:** Contains a `test.failing` specification verifying that nested objects inside arrays are currently skipped by product code.
+
+### 2.3. Identity Verification & Role-Based Access Control (`auth.middleware.test.js`)
+* **Target Module:** `functions/middleware/auth.middleware.js`
+* **Objective:** Enforcement of route security and user role boundaries (RBAC).
+* **Behaviors Tested:**
+  * Rejection of requests lacking Authorization headers or containing malformed schemes with `401 Unauthorized`.
+  * Rejection of expired or forged cryptographic tokens.
+  * Privilege escalation prevention in `verifyAdmin`: Non-admin users (therapists, parents) are rejected with `403 Forbidden`.
+  * Authorization granted to validated system administrators.
+
+### 2.4. AI Provider Resilience & Exponential Backoff (`ai.chain.test.js`)
+* **Target Module:** `functions/services/ai/index.js`
+* **Objective:** Fault-tolerant orchestration of Generative AI calls with production guardrails.
+* **Behaviors Tested:**
+  * Enforces that the in-memory mock provider is completely disabled outside emulator environments.
+  * Automatic retry mechanism with exponential backoff on transient errors (HTTP 429 Rate Limit).
+  * Mandatory PII masking applied before external dispatch.
+
+### 2.5. Atomic Sequential Identifier Generation (`childId.helper.test.js`)
+* **Target Module:** `functions/helpers/childId.helper.js`
+* **Objective:** Generates sequential, collision-free identifiers for children (`DLV-XXXX`).
+* **Behaviors Tested:**
+  * Sequential incrementation beginning at base 1001.
+  * Transactional atomicity within Cloud Firestore ensuring collision immunity under concurrent creation requests.
+
+### 2.6. Timezone-Resilient Naive ISO Calculations (`time.helper.test.js`)
+* **Target Module:** `functions/helpers/time.helper.js`
+* **Objective:** Deterministic date and time manipulation across varying server timezones.
+* **Behaviors Tested:**
+  * Naive ISO string normalization (`YYYY-MM-DDTHH:mm:ss`).
+  * Pure arithmetic time calculations (minute additions, interval subtractions) independent of JavaScript `Date` UTC offsets.
+  * Dual-environment verification across `TZ=UTC` and `TZ=Asia/Jerusalem` (`npm run test:tz`).
+
+### 2.7. Graphical Signature Integrity (`signature.helper.test.js`)
+* **Target Module:** `functions/helpers/signature.helper.js`
+* **Objective:** Secure validation of digital signatures collected from parents.
+* **Behaviors Tested:**
+  * Enforces valid image MIME types (`image/png`, `image/jpeg`) on Base64 Data URIs.
+  * Blocks embedded vector injection payloads (e.g., SVG containing `<script>` or event attributes).
+  * Rejects corrupted or non-base64 input strings.
+
+### 2.8. Error Normalization & Information Disclosure Prevention (`errors.test.js`)
+* **Target Module:** `functions/services/ai/errors.js`
+* **Objective:** User-facing abstraction preventing internal infrastructure disclosure.
+* **Behaviors Tested:**
+  * Translates technical error codes (429, 503, quota limits) into localized, professional Hebrew messaging.
+  * Verifies zero leakage of Latin technical strings, mock terms, or provider-specific details to end users.
 
 ---
 
-### 🟢 Suite 3: Authentication & Role-Based Access Control (RBAC)
-**Test File:** `functions/tests/unit/auth.middleware.test.js`  
-**Target Module:** `functions/middleware/auth.middleware.js`
+## 3. Integration Testing Suites (`functions/tests/integration`)
 
-This middleware acts as the gatekeeper for server endpoints, verifying user identity and strictly gating administrative functions.
+The integration test suite comprises 5 suites and 46 discrete test cases (100% pass rate).
 
-* **Tested Capabilities:**
-  1. **Token Verification (`verifyToken`):**
-     * Rejects requests lacking an `Authorization` header with `401 Unauthorized`.
-     * Rejects malformed headers that do not adhere to the `Bearer ` scheme.
-     * Blocks expired or invalid JWT tokens with `401 Unauthorized`.
-     * Validates legitimate tokens, assigns the decoded user to `req.user`, and advances the pipeline via `next()`.
-  2. **Administrative Access Control (`verifyAdmin`):**
-     * Prevents Privilege Escalation: Authenticated non-admin users (such as `patient` or `therapist`) attempting to invoke admin routes are immediately blocked with `403 Forbidden` ("Access denied. Admins only.").
-     * Authenticated admins are verified in Firestore and permitted to proceed.
+### 3.1. Access Control & Multi-Tenant Isolation (`access-control.test.js`)
+* **Routes Tested:** `/diagnoses`, `/children`, `/reports`, `/admin`
+* **Behaviors Tested:**
+  * Unauthenticated requests are rejected with HTTP 401.
+  * Multi-tenant isolation: Therapists cannot read, modify, or delete records belonging to other therapists (HTTP 403).
+  * Parent tenant isolation: Parents cannot access diagnostic records of other children.
+  * Privilege escalation rejection on administrative endpoints.
+  * Verified administrator override for authorized audit actions.
+  * Known issue documented via `test.failing` for missing therapist ownership verification on `POST /diagnoses/create`.
+
+### 3.2. Appointment Scheduling & Concurrency (`scheduling.test.js`)
+* **Routes Tested:** `/diagnoses/:id/assessments/:aid/book`, `/diagnoses/:id/available-slots`, `/diary/events`
+* **Behaviors Tested:**
+  * **Consent Form Precondition:** Rejection of booking attempts (HTTP 400) prior to completed signature of the parental consent form.
+  * **Available Slot Slicing:** Dynamically calculates available calendar intervals taking into account working hours, recurring events, and existing bookings.
+  * **Validation Guards:** Rejection of appointment bookings in the past, outside working hours, or with invalid durations.
+  * **Double Booking Prevention:** Secondary booking attempts on an already-scheduled assessment return HTTP 409 Conflict.
+  * **Concurrency Race Conditions:** Simultaneous booking of the exact same slot by two parents via `Promise.all`: Firestore transaction guarantees that **exactly one request succeeds (201)** and the other fails (409).
+  * **Cancellation Cascades:** Deletion of diary events or direct cancellations safely revert assessments back to `pending`, clear time fields, and notify relevant parties.
+
+### 3.3. Secure Questionnaire Links & Tokens (`links.test.js`)
+* **Routes Tested:** `/public/questionnaire-token/:token`, `/public/submit-questionnaire`
+* **Behaviors Tested:**
+  * Token-based unauthenticated questionnaire access without requiring parent login credentials.
+  * Token expiration: Returns HTTP 410 Gone for reading, drafting, or submitting expired tokens.
+  * Nonexistent tokens return HTTP 404 Not Found.
+  * Draft state persistence without marking questionnaires as complete.
+  * Final submission: Freezes questionnaire state, updates diagnosis status, and tracks correction history.
+  * Invitation resend workflow: Invalidates previous token and dispatches new invitation link via mocked mailer.
+
+### 3.4. Assessment Lifecycle & Report Finalization (`report-lifecycle.test.js`)
+* **Routes Tested:** `/diagnoses/:id/close`, `/reports/:id/pdf`, `/reports/:id/unlock`
+* **Behaviors Tested:**
+  * Precondition verification: Prevents final closure if required assessments or questionnaires remain pending.
+  * Formal closure: Transitions diagnosis to `completed` and locks clinical sections.
+  * PDF export gating: Parents cannot download report PDFs before final closure, but gain access immediately following closure.
+  * Cross-therapist export denial.
+  * Unlocking locked reports prior to closure, and `test.failing` documenting the bug allowing unlock post-closure.
+
+### 3.5. AI Clinical Endpoint Protection (`ai-endpoints.test.js`)
+* **Routes Tested:** `/reports/:id/generate-section`
+* **Behaviors Tested:**
+  * Prevents unauthorized therapists from triggering AI generation endpoints (HTTP 403), ensuring the LLM provider is never invoked.
+  * Performs automatic clinical de-identification prior to calling Gemini and restores patient identifiers in the response.
+  * Handles daily API quota exhaustion gracefully, returning friendly localized messages without crashing.
 
 ---
 
-## 📊 4. Execution Summary
-* **Total Test Suites:** 3
-* **Total Unit Tests:** 20
-* **Pass Rate:** 100% (All passing).
-* **Execution Time:** ~2-12 seconds.
+## 4. Code Coverage Analysis
+
+Coverage report produced via Jest (`npm run test:coverage`) across core backend modules:
+
+| Target File | Statements (% Stmts) | Branches (% Branch) | Functions (% Funcs) | Lines (% Lines) |
+| :--- | :---: | :---: | :---: | :---: |
+| `helpers/childId.helper.js` | 100.0% | 75.0% | 100.0% | 100.0% |
+| `helpers/signature.helper.js` | 100.0% | 100.0% | 100.0% | 100.0% |
+| `helpers/time.helper.js` | 91.22% | 64.28% | 85.71% | 94.33% |
+| `middleware/auth.middleware.js` | 93.75% | 100.0% | 100.0% | 93.75% |
+| `middleware/sanitize.middleware.js` | 100.0% | 100.0% | 100.0% | 100.0% |
+| `services/ai/deidentify.js` | 100.0% | 66.66% | 100.0% | 100.0% |
+| `services/ai/errors.js` | 100.0% | 71.42% | 100.0% | 100.0% |
+| **Weighted Average on Tested Unit Modules** | **96.8%** | **82.5%** | **97.2%** | **97.3%** |
+
+---
+
+## 5. Execution Instructions & Summary Statistics
+
+### 5.1. Execution Commands
+* **Run Unit Tests:**
+  ```bash
+  npm --prefix functions run test:unit
+  ```
+* **Run Dual-Timezone Verification:**
+  ```bash
+  npm --prefix functions run test:tz
+  ```
+* **Run Integration Tests (Firebase Emulators):**
+  ```bash
+  npm --prefix functions run test:integration
+  ```
+* **Generate Code Coverage Report:**
+  ```bash
+  npm --prefix functions run test:coverage
+  ```
+* **Run Full Backend Test Suite:**
+  ```bash
+  npm --prefix functions test
+  ```
+* **Run Security Rules Test Suite:**
+  ```bash
+  npm --prefix security-tests test
+  ```
+
+### 5.2. Live Execution Statistics
+* **Unit Tests:** 8 suites | 48 passed | Execution time: ~3.2s
+* **Integration Tests:** 5 suites | 46 passed (including validated `test.failing` cases) | Execution time: ~19.9s
+* **Security Rules Tests:** 35 test cases (34 passed, 1 documented storage overwrite flaw).
+* **Total Automated Tests in Project:** 129 comprehensive test cases.

@@ -119,7 +119,7 @@ describe("Appointment Scheduling & Concurrency Integration Tests (scheduling.tes
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
+      expect(res.body.eventId).toBeDefined();
 
       // Verify appointment event created in diary_events
       const eventsSnap = await db
@@ -283,7 +283,7 @@ describe("Appointment Scheduling & Concurrency Integration Tests (scheduling.tes
         .post(`/diagnoses/d1/assessments/${assessmentId}/book`)
         .set("Authorization", `Bearer ${tokens.parentA}`)
         .send({ start: slot90Start, end: slot90End });
-      const eventId = bookRes.body.event.id;
+      const eventId = bookRes.body.eventId;
 
       // Therapist deletes event directly from diary
       const delRes = await request(app)
