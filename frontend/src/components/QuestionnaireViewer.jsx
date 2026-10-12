@@ -1123,10 +1123,6 @@ const QuestionnaireViewer = ({ data, showOwnExportButton = true }) => {
       {/* 7. רקע התפתחותי */}
       <RenderSection title="רקע התפתחותי">
         <AnswerBox
-          label="הריון מתוכנן?"
-          value={formData.development?.plannedPregnancy}
-        />
-        <AnswerBox
           label="הריון תקין?"
           value={formData.development?.normalPregnancy}
         />

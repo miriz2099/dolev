@@ -2790,7 +2790,6 @@ const generateParentQuestionnaireHTML = (doc) => {
   html += `</table>`;
 
   html += `<h2>רקע התפתחותי</h2><table class="info-table">`;
-  html += infoRow("הריון מתוכנן?", f.development?.plannedPregnancy);
   html += infoRow("הריון תקין?", f.development?.normalPregnancy);
   html += infoRow("פרטי ההריון", f.development?.pregnancyDetails);
   html += infoRow("לידה תקינה?", f.development?.normalBirth);

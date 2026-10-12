@@ -54,7 +54,6 @@ const SECTION_QUESTIONNAIRE_FIELDS = {
       { field: "fatherJob", label: "עיסוק האב" },
       { field: "fatherNotes", label: "הערות על האב" },
 
-      { field: "plannedPregnancy", label: "תכנון ההיריון" },
       { field: "normalPregnancy", label: "תקינות מהלך ההיריון" },
       { field: "pregnancyDetails", label: "פרט על ההיריון" },
       { field: "normalBirth", label: "תקינות מהלך הלידה" },

@@ -215,7 +215,6 @@ const ParentQuestionnaire = ({
 
     // Step 7
     development: {
-      plannedPregnancy: "",
       normalPregnancy: "",
       pregnancyDetails: "",
       normalBirth: "",
@@ -1515,24 +1514,14 @@ const ParentQuestionnaire = ({
         return (
           <div className="space-y-5">
             <SectionTitle>רקע התפתחותי</SectionTitle>
-            <div className="grid grid-cols-2 gap-4">
-              <InputField
-                label="האם ההיריון היה/הייתה מתוכנן? (כן / לא) *"
-                value={formData.development.plannedPregnancy}
-                onChange={(v) =>
-                  handleNested("development", "plannedPregnancy", v)
-                }
-                error={isMissing("development.plannedPregnancy")}
-              />
-              <InputField
-                label="האם ההיריון היה תקין? (כן / לא) *"
-                value={formData.development.normalPregnancy}
-                onChange={(v) =>
-                  handleNested("development", "normalPregnancy", v)
-                }
-                error={isMissing("development.normalPregnancy")}
-              />
-            </div>
+            <InputField
+              label="האם ההיריון היה תקין? (כן / לא) *"
+              value={formData.development.normalPregnancy}
+              onChange={(v) =>
+                handleNested("development", "normalPregnancy", v)
+              }
+              error={isMissing("development.normalPregnancy")}
+            />
             <InputField
               label="פרט על ההיריון *"
               value={formData.development.pregnancyDetails}
@@ -1995,8 +1984,6 @@ const ParentQuestionnaire = ({
     // --- שלב 7: רקע התפתחותי (שדות נסטד) ---
     currentStep = 7;
     const dev = formData.development;
-    if (!dev.plannedPregnancy)
-      add("האם ההריון היה מתוכנן", "development.plannedPregnancy");
     if (!dev.normalPregnancy)
       add("האם ההריון היה תקין", "development.normalPregnancy");
     if (!dev.pregnancyDetails)
