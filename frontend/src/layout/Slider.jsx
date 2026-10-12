@@ -215,15 +215,22 @@ const Slider = () => {
                     isActive || isChildContextMatch ? "active-link" : ""
                   }
                 >
-                  {link.label}
+                  <span className="nav-label">{link.label}</span>
+                  {isChildContextMatch && navContext?.label && (
+                    <span
+                      className="nav-context-line"
+                      title={
+                        navContext.sub
+                          ? `${navContext.label} ‹ ${navContext.sub}`
+                          : navContext.label
+                      }
+                    >
+                      {navContext.sub
+                        ? `${navContext.label} ‹ ${navContext.sub}`
+                        : navContext.label}
+                    </span>
+                  )}
                 </NavLink>
-                {isChildContextMatch && navContext?.label && (
-                  <div className="nav-context-line">
-                    {navContext.sub
-                      ? `${navContext.label} ‹ ${navContext.sub}`
-                      : navContext.label}
-                  </div>
-                )}
               </li>
             );
           })}
@@ -257,11 +264,13 @@ const Slider = () => {
           font-weight: bold;
           border-left: 4px solid #fff; /* שיניתי ל-left כי האתר ב-RTL */
         }
+        .nav-label { display: block; }
         .nav-context-line {
-          padding: 0 20px 8px 20px;
-          margin-top: -6px;
-          font-size: 12px;
-          color: #c9d6ff;
+          display: block;
+          margin-top: 3px;
+          font-size: 12.5px;
+          font-weight: normal;
+          color: rgba(255, 255, 255, 0.85);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
