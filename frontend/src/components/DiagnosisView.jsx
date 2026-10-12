@@ -541,6 +541,7 @@ import SchoolSurveyView from "./SchoolSurveyView"; // קומפוננטה חדש�
 import GenericMessageModal from "./GenericMessageModal";
 import { useAuth } from "../contexts/AuthContext";
 import ReportForm from "./ReportForm";
+import RequiredAssessmentsManager from "./RequiredAssessmentsManager";
 import childService from "../services/child.service";
 import { formatDate } from "../utils/dateFormat";
 import { childFullName } from "../utils/childDisplay";
@@ -561,6 +562,12 @@ const DiagnosisView = ({
   onDiagnosisClosed,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState("questionnaires");
+
+  // 🆕 מפגשי אבחון נדרשים - עותק מקומי שמתעדכן מהשרת בלי לדרוס את ה-prop
+  const [currentDiagnosis, setCurrentDiagnosis] = useState(diagnosis);
+  useEffect(() => {
+    setCurrentDiagnosis(diagnosis);
+  }, [diagnosis]);
 
   // 🆕 מחיקת אבחון - מודאל עם תצוגה מקדימה ושער "הקלידי שם" (Part 7)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -620,6 +627,22 @@ const DiagnosisView = ({
       fetchSchoolInvitation();
     }
   }, [activeSubTab]);
+
+  // 🆕 רענון currentDiagnosis מהשרת - בשימוש אחרי הוספה/עריכה/מחיקה/קביעת
+  // תור למפגש אבחון, כדי שהרשימה/הנקודה הכתומה יתעדכנו בלי לרענן את העמוד
+  const refreshDiagnosis = async () => {
+    try {
+      const token = await currentUser.getIdToken();
+      const allDiagnoses = await therapistService.getDiagnoses(
+        diagnosis.childId,
+        token,
+      );
+      const updated = allDiagnoses.find((d) => d.id === diagnosis.id);
+      if (updated) setCurrentDiagnosis(updated);
+    } catch (err) {
+      console.error("Error refreshing diagnosis:", err);
+    }
+  };
 
   const fetchParentAnswers = async () => {
     try {
@@ -1149,6 +1172,16 @@ const DiagnosisView = ({
             </div>
           </div>
         );
+      case "assessments":
+        return (
+          <RequiredAssessmentsManager
+            diagnosisId={currentDiagnosis.id}
+            assessments={currentDiagnosis.requiredAssessments || []}
+            onChange={refreshDiagnosis}
+            readOnly={!!diagnosis.closed}
+            consentStatus={consentForm?.status}
+          />
+        );
       case "report":
         return (
           <ReportForm
@@ -1274,6 +1307,7 @@ const DiagnosisView = ({
         <div className="flex gap-2 bg-gray-100/60 p-1.5 rounded-2xl w-fit">
           {[
             { id: "questionnaires", label: "שאלונים", icon: "📋" },
+            { id: "assessments", label: "מפגשי אבחון", icon: "🧪" },
             { id: "report", label: "הנפקת דוח", icon: "📄" },
           ].map((tab) => (
             <button
@@ -1282,6 +1316,11 @@ const DiagnosisView = ({
               className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${activeSubTab === tab.id ? "bg-white text-blue-600 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
             >
               <span>{tab.icon}</span> {tab.label}
+              {tab.id === "assessments" &&
+                (currentDiagnosis.requiredAssessments || []).length === 0 &&
+                !diagnosis.closed && (
+                  <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                )}
             </button>
           ))}
         </div>

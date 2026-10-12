@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import therapistService from "../services/therapist.service";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -9,11 +10,15 @@ import { useAuth } from "../contexts/AuthContext";
  * - diagnosisId: string
  * - assessments: Array (requiredAssessments מתוך ה-diagnosis)
  * - onChange: () => void  - callback לרענון מהשרת אחרי כל פעולה
+ * - readOnly: boolean - true כשהאבחון סגור: מסתיר הוספה/עריכה/מחיקה
+ * - consentStatus: string - סטטוס טופס ההסכמה (consentForm.status), לשורת ההסבר בראש הרכיב
  */
 const RequiredAssessmentsManager = ({
   diagnosisId,
   assessments = [],
   onChange,
+  readOnly = false,
+  consentStatus,
 }) => {
   const { currentUser } = useAuth();
 
@@ -129,13 +134,13 @@ const RequiredAssessmentsManager = ({
       dir="rtl"
     >
       {/* כותרת + כפתור הוספה */}
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+      <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
         <div>
           <h3 className="text-2xl font-bold text-gray-800">
             🧪 אבחונים נדרשים
           </h3>
         </div>
-        {!isFormOpen && (
+        {!isFormOpen && !readOnly && (
           <button
             onClick={openAddForm}
             className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md text-sm shrink-0"
@@ -145,8 +150,36 @@ const RequiredAssessmentsManager = ({
         )}
       </div>
 
+      {/* 🆕 שורת מידע על מצב טופס ההסכמה - האם ההורה יכול כבר לקבוע תור */}
+      <div
+        className={`mb-4 rounded-xl p-3 text-sm ${
+          consentStatus === "fully_signed"
+            ? "bg-blue-50 border border-blue-100 text-blue-800"
+            : "bg-amber-50 border border-amber-100 text-amber-800"
+        }`}
+      >
+        {consentStatus === "fully_signed" ? (
+          <>
+            ההורה יכול לבחור מועד מתוך שעות הזמינות שפתחת ב
+            <Link to="/diary" className="font-bold underline hover:no-underline">
+              יומן
+            </Link>
+            .
+          </>
+        ) : (
+          "ההורה יוכל לבחור מועדים אחרי שטופס ההסכמה ייחתם במלואו"
+        )}
+      </div>
+
+      {/* 🆕 האבחון סגור - אין אפשרות לשנות מפגשים */}
+      {readOnly && (
+        <div className="mb-4 rounded-xl p-3 text-sm bg-gray-50 border border-gray-200 text-gray-600">
+          האבחון נסגר – לא ניתן לשנות מפגשים
+        </div>
+      )}
+
       {/* טופס הוספה/עריכה */}
-      {isFormOpen && (
+      {isFormOpen && !readOnly && (
         <form
           onSubmit={handleSubmit}
           className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl mb-6 animate-fadeIn"
@@ -229,15 +262,30 @@ const RequiredAssessmentsManager = ({
 
       {/* רשימת האבחונים */}
       {assessments.length === 0 ? (
-        <div className="p-12 border-2 border-dashed border-gray-100 rounded-2xl text-center bg-gray-50/50 text-gray-500">
-          <div className="text-5xl mb-3 text-gray-300">📋</div>
-          <p className="text-base font-medium">
-            טרם הוגדרו אבחונים נדרשים לתהליך זה.
-          </p>
-          <p className="text-sm mt-2 text-gray-400">
-            יש ללחוץ על "הוספת אבחון"
-          </p>
-        </div>
+        readOnly ? (
+          <div className="p-12 border-2 border-dashed border-gray-100 rounded-2xl text-center bg-gray-50/50 text-gray-500">
+            <div className="text-5xl mb-3 text-gray-300">📋</div>
+            <p className="text-base font-medium">
+              טרם הוגדרו אבחונים נדרשים לתהליך זה.
+            </p>
+          </div>
+        ) : (
+          <div className="p-12 border-2 border-dashed border-gray-100 rounded-2xl text-center bg-gray-50/50 text-gray-500">
+            <div className="text-5xl mb-3 text-gray-300">📋</div>
+            <p className="text-base font-medium">
+              עדיין לא הוגדרו מפגשים. ההורה יוכל לקבוע תור רק אחרי שתוסיפי
+              לפחות מפגש אחד
+            </p>
+            {!isFormOpen && (
+              <button
+                onClick={openAddForm}
+                className="mt-4 bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md text-sm"
+              >
+                + הוספת מפגש
+              </button>
+            )}
+          </div>
+        )
       ) : (
         <div className="space-y-3">
           {assessments.map((asm) => {
@@ -315,7 +363,7 @@ const RequiredAssessmentsManager = ({
                 </div>
 
                 <div className="flex gap-2 shrink-0">
-                  {isPending && (
+                  {isPending && !readOnly && (
                     <button
                       onClick={() => openEditForm(asm)}
                       className="bg-blue-50 text-blue-600 border border-blue-100 px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-100 transition-all"
@@ -324,7 +372,7 @@ const RequiredAssessmentsManager = ({
                       ✏️ עריכה
                     </button>
                   )}
-                  {asm.status !== "scheduled" && (
+                  {asm.status !== "scheduled" && !readOnly && (
                     <button
                       onClick={() => handleDelete(asm)}
                       className="bg-red-50 text-red-600 border border-red-100 px-3 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-all"
