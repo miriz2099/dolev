@@ -7,8 +7,21 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "jest --runInBand",
+    "test:unit": "jest --runInBand tests/unit",
+    "test:tz": "cross-env TZ=UTC jest tests/unit/time && cross-env TZ=Asia/Jerusalem jest tests/unit/time",
+    "test:integration": "firebase emulators:exec --only auth,firestore --project demo-dolev-test \"jest --runInBand --config jest.integration.config.js\"",
+    "test:coverage": "jest --coverage tests/unit",
+    "test": "npm run test:unit && npm run test:integration",
     "test:watch": "jest --watch"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "services/ai/deidentify.js",
+      "services/ai/errors.js",
+      "services/ai/index.js",
+      "middleware/**",
+      "helpers/**"
+    ]
   },
   "engines": {
     "node": "22"
@@ -28,6 +41,7 @@
     "nodemailer": "^9.0.3"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "firebase-functions-test": "^0.3.3",
     "jest": "^30.5.2",
     "supertest": "^7.3.1"

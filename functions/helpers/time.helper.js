@@ -1,48 +1,51 @@
 // functions/helpers/time.helper.js
-//
-// Helpers משותפים לעבודה עם "naive ISO" - המוסכמה בכל המערכת: זמנים
-// נשמרים כמחרוזת "YYYY-MM-DDTHH:mm:ss" בשעון ישראל, בלי timezone suffix.
-// לכן אסור להשתמש ב-new Date()/toISOString() על המחרוזות האלה בלי לעבור
-// דרך ה-helpers האלה - זה יוצר timezone shift לפי שעון השרת שמריץ את הקוד.
 
 /**
- * true אם למחרוזת יש Z או offset (למשל "...Z" או "...+03:00") - כלומר
- * היא לא naive ודורשת המרה לשעון ישראל לפני שמשתמשים בה.
- */
-const hasTimezoneInfo = (isoStr) => /Z$|[+-]\d{2}:\d{2}$/.test(isoStr);
-
-/**
- * נורמליזציה לפורמט אחיד "YYYY-MM-DDTHH:mm:ss" (19 תווים, בלי מילישניות):
- * - מחרוזת עם Z/offset (למשל "2026-10-20T06:00:00.000Z"): מומרת לשעון
- *   ישראל (גם אירועים ישנים שנשמרו כך יפורשו נכון, בלי מיגרציה).
- * - מחרוזת naive (למשל "2026-05-10T17:30"): מנורמלת כמו היום -
- *   "2026-05-10T17:30:00".
- * חיוני להשוואות string-based שיהיו עקביות (למשל availability עם 16
- * תווים vs slot מחושב עם 19 תווים).
+ * מנרמל מחרוזת תאריך ל-naive ISO string בפורמט YYYY-MM-DDTHH:mm:ss לפי שעון ישראל.
+ * תומך ב:
+ * 1. naive ISO (ללא אזור זמן), למשל "2026-10-20T09:00" -> "2026-10-20T09:00:00"
+ * 2. UTC ISO עם Z או offset, למשל "2026-10-20T06:00:00.000Z" -> "2026-10-20T09:00:00"
  */
 const normalizeNaiveISO = (isoStr) => {
   if (!isoStr) return isoStr;
 
-  if (hasTimezoneInfo(isoStr)) {
-    return new Date(isoStr)
-      .toLocaleString("sv-SE", { timeZone: "Asia/Jerusalem" })
-      .replace(" ", "T");
+  // אם זה זמן UTC עם Z או offset, ממירים לפי שעון ישראל (Asia/Jerusalem)
+  if (isoStr.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(isoStr)) {
+    const date = new Date(isoStr);
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Jerusalem",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const getPart = (type) => parts.find((p) => p.type === type)?.value;
+    const yyyy = getPart("year");
+    const mm = getPart("month");
+    const dd = getPart("day");
+    let hh = getPart("hour");
+    if (hh === "24") hh = "00";
+    const min = getPart("minute");
+    const ss = getPart("second");
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`;
   }
 
+  // אחרת זה כבר naive ISO - רק מוודאים שניות בפורמט HH:mm:ss
   const [datePart, timePart] = isoStr.split("T");
   const parts = timePart.split(":");
   const hh = parts[0].padStart(2, "0");
   const mm = parts[1].padStart(2, "0");
-  const ss = parts[2] ? parts[2].padStart(2, "0") : "00";
+  const ss = parts[2] ? parts[2].substring(0, 2).padStart(2, "0") : "00";
   return `${datePart}T${hh}:${mm}:${ss}`;
 };
 
 /**
- * הוספת דקות ל-naive ISO string
- * "2026-05-10T09:00:00" + 90 דקות => "2026-05-10T10:30:00"
- * משתמש ב-Date.UTC כאריתמטיקה בלבד (לא כ"זמן UTC אמיתי") כדי להימנע
- * מ-timezone shift של השרת, ובכוונה "עיוור" ל-DST - כך ששעה "09:00"
- * נשארת "09:00" גם אחרי מעבר שעון חורף/קיץ באמצע הטווח.
+ * הוספת דקות ל-naive ISO string ללא תלות באזור הזמן המקומי של המכונה.
+ * משתמש ב-UTC כדי למנוע timezone shifts.
  */
 const addMinutesToNaiveISO = (isoStr, minutesToAdd) => {
   const [datePart, timePart] = isoStr.split("T");
@@ -68,32 +71,26 @@ const addMinutesToNaiveISO = (isoStr, minutesToAdd) => {
 
 /**
  * חישוב הפרש בדקות בין 2 naive ISO strings
- * minutesDiffNaiveISO("...T10:30", "...T09:00") = 90
  */
 const minutesDiffNaiveISO = (laterISO, earlierISO) => {
   const toUtcMs = (iso) => {
     const [datePart, timePart] = iso.split("T");
     const [y, m, d] = datePart.split("-").map(Number);
     const tp = timePart.split(":");
-    return Date.UTC(
-      y,
-      m - 1,
-      d,
-      parseInt(tp[0], 10),
-      parseInt(tp[1], 10),
-      tp[2] ? parseInt(tp[2], 10) : 0,
-    );
+    const h = parseInt(tp[0], 10);
+    const min = parseInt(tp[1], 10);
+    const s = tp[2] ? parseInt(tp[2], 10) : 0;
+    return Date.UTC(y, m - 1, d, h, min, s);
   };
-  return (toUtcMs(laterISO) - toUtcMs(earlierISO)) / (60 * 1000);
+
+  return Math.round((toUtcMs(laterISO) - toUtcMs(earlierISO)) / (60 * 1000));
 };
 
 /**
  * החזרת הזמן הנוכחי כ-naive ISO לפי timezone ישראל
- * (כי ה-events נשמרים לפי שעון מקומי ישראלי)
  */
 const getCurrentNaiveISO = () => {
   const now = new Date();
-  // sv-SE format: "2026-05-10 16:30:45"
   const israelTimeStr = now.toLocaleString("sv-SE", {
     timeZone: "Asia/Jerusalem",
   });

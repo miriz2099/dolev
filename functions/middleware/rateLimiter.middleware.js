@@ -124,12 +124,25 @@ const aiRefineLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = {
-  generalLimiter,
-  publicRouteLimiter,
-  messageLimiter,
-  aiLimiter,
-  aiBatchLimiter,
-  aiPlausibilityLimiter,
-  aiRefineLimiter,
-};
+if (process.env.NODE_ENV === "test") {
+  const noop = (req, res, next) => next();
+  module.exports = {
+    generalLimiter: noop,
+    publicRouteLimiter: noop,
+    messageLimiter: noop,
+    aiLimiter: noop,
+    aiBatchLimiter: noop,
+    aiPlausibilityLimiter: noop,
+    aiRefineLimiter: noop,
+  };
+} else {
+  module.exports = {
+    generalLimiter,
+    publicRouteLimiter,
+    messageLimiter,
+    aiLimiter,
+    aiBatchLimiter,
+    aiPlausibilityLimiter,
+    aiRefineLimiter,
+  };
+}

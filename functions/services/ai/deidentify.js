@@ -40,8 +40,12 @@ const buildEntityMap = (child = {}, parent = {}) => {
 /** רשת ביטחון: דפוסים מזהים שהוקלדו ידנית בטקסט */
 const FALLBACK_PATTERNS = [
   { pattern: /\b\d{9}\b/g, token: "[ת.ז]" },
-  { pattern: /\b0\d{1,2}-?\d{7}\b/g, token: "[טלפון]" },
-  { pattern: /[\w.+-]+@[\w-]+\.[\w.]+/g, token: "[מייל]" },
+  {
+    pattern:
+      /(?:\+972[- ]?0?|0)(?:[23489]|5\d|7\d)[- ]?(?:\d{3}[- ]?\d{4}|\d{7})\b/g,
+    token: "[טלפון]",
+  },
+  { pattern: /[\w.+-]+@[\w-]+\.[\w.]+/gi, token: "[מייל]" },
 ];
 
 /**
@@ -54,11 +58,19 @@ const redact = (text, entityMap = []) => {
   let result = text;
   const replacements = [];
 
+  const LETTERS = "\\u05D0-\\u05EAa-zA-Z";
+  const PREFIX = "[\\u05D5\\u05D4\\u05D1\\u05DC\\u05DE\\u05E9\\u05DB]{0,2}";
+
   for (const { value, token } of entityMap) {
-    const re = new RegExp(escapeRegex(value), "g");
+    const re = new RegExp(
+      `(^|[^${LETTERS}])(${PREFIX})${escapeRegex(value)}(?=$|[^${LETTERS}])`,
+      "g",
+    );
     if (re.test(result)) {
-      result = result.replace(re, token);
-      replacements.push({ token, value });
+      result = result.replace(re, `$1$2${token}`);
+      if (!replacements.some((r) => r.token === token && r.value === value)) {
+        replacements.push({ token, value });
+      }
     }
   }
 

@@ -29,7 +29,7 @@ describe("AI De-identification Service (deidentify.js)", () => {
           { value: "אברהם", token: "[שם_הורה]" },
           { value: "050-1234567", token: "[טלפון]" },
           { value: "avraham@example.com", token: "[מייל]" },
-        ])
+        ]),
       );
     });
 
@@ -53,7 +53,46 @@ describe("AI De-identification Service (deidentify.js)", () => {
     });
   });
 
-  describe("redact", () => {
+  describe("redact - word boundaries and Hebrew prefix letters", () => {
+    it("should NOT replace short names embedded inside other words (טל vs טלפון)", () => {
+      const child = { firstName: "טל", lastName: "רוזן" };
+      const entityMap = buildEntityMap(child);
+
+      const text = "השאירו טלפון במזכירות בבוקר.";
+      const { text: redactedText } = redact(text, entityMap);
+
+      expect(redactedText).toBe("השאירו טלפון במזכירות בבוקר.");
+      expect(redactedText).not.toContain("[שם_הנבחן]");
+    });
+
+    it("should replace name when it stands as an independent word", () => {
+      const child = { firstName: "טל", lastName: "רוזן" };
+      const entityMap = buildEntityMap(child);
+
+      const text = "טל הגיע לאבחון בזמן.";
+      const { text: redactedText } = redact(text, entityMap);
+
+      expect(redactedText).toBe("[שם_הנבחן] הגיע לאבחון בזמן.");
+    });
+
+    it("should preserve allowed Hebrew prefix letters before the token (לנועה, ונועה, שנועה)", () => {
+      const child = { firstName: "נועה", lastName: "לוי" };
+      const entityMap = buildEntityMap(child);
+
+      expect(redact("לנועה יש קושי בריכוז", entityMap).text).toBe(
+        "ל[שם_הנבחן] יש קושי בריכוז",
+      );
+      expect(redact("ונועה ישבה בשקט", entityMap).text).toBe(
+        "ו[שם_הנבחן] ישבה בשקט",
+      );
+      expect(redact("שנועה תגיע מחר", entityMap).text).toBe(
+        "ש[שם_הנבחן] תגיע מחר",
+      );
+      expect(redact("כשנועה נכנסה לחדר", entityMap).text).toBe(
+        "כש[שם_הנבחן] נכנסה לחדר",
+      );
+    });
+
     it("should replace known entity values with their tokens", () => {
       const child = { firstName: "נועה", lastName: "לוי" };
       const parent = { firstName: "רונית" };
@@ -63,67 +102,132 @@ describe("AI De-identification Service (deidentify.js)", () => {
       const { text: redactedText, replacements } = redact(text, entityMap);
 
       expect(redactedText).toBe(
-        "[שם_הנבחן] [שם_משפחה] הגיעה לאבחון מלווה באמה [שם_הורה]."
+        "[שם_הנבחן] [שם_משפחה] הגיעה לאבחון מלווה באמה [שם_הורה].",
       );
       expect(replacements).toEqual(
         expect.arrayContaining([
           { token: "[שם_הנבחן]", value: "נועה" },
           { token: "[שם_משפחה]", value: "לוי" },
           { token: "[שם_הורה]", value: "רונית" },
-        ])
+        ]),
       );
-    });
-
-    it("should mask fallback patterns for manual IDs, phones, and emails", () => {
-      const entityMap = []; // no known profile data
-      const text =
-        "פרטי קשר נוספים: תז 987654321, טלפון 052-9876543 ומייל doctor@clinic.org.";
-
-      const { text: redactedText } = redact(text, entityMap);
-
-      expect(redactedText).toContain("[ת.ז]");
-      expect(redactedText).toContain("[טלפון]");
-      expect(redactedText).toContain("[מייל]");
-      expect(redactedText).not.toContain("987654321");
-      expect(redactedText).not.toContain("052-9876543");
-      expect(redactedText).not.toContain("doctor@clinic.org");
-    });
-
-    it("should handle text with no matching entities without altering it", () => {
-      const entityMap = [{ value: "דני", token: "[שם_הנבחן]" }];
-      const text = "הילד שיתף פעולה באופן מלא במהלך המטלות.";
-
-      const { text: redactedText, replacements } = redact(text, entityMap);
-
-      expect(redactedText).toBe(text);
-      expect(replacements).toHaveLength(0);
     });
   });
 
-  describe("restore", () => {
-    it("should restore redacted tokens back to original values", () => {
-      const originalText = "אורי כהן הציג מוטיבציה גבוהה.";
-      const entityMap = [
-        { value: "אורי", token: "[שם_הנבחן]" },
-        { value: "כהן", token: "[שם_משפחה]" },
-      ];
+  describe("redact - fallback regex patterns", () => {
+    const testPhoneFormat = (phoneStr) => {
+      const text = `מספר יצירת קשר: ${phoneStr}. המשך טקסט.`;
+      const { text: redactedText } = redact(text, []);
+      expect(redactedText).toContain("[טלפון]");
+      expect(redactedText).not.toContain(phoneStr);
+    };
 
+    it("should mask all 5 common Israeli phone number formats to [טלפון]", () => {
+      testPhoneFormat("052 987 6543");
+      testPhoneFormat("052-987-6543");
+      testPhoneFormat("+972-52-9876543");
+      testPhoneFormat("+972529876543");
+      testPhoneFormat("03-1234567");
+    });
+
+    it("should mask email addresses regardless of uppercase characters", () => {
+      const text = "פנייה נשלחה אל Doctor@Clinic.ORG בבוקר.";
+      const { text: redactedText } = redact(text, []);
+
+      expect(redactedText).toBe("פנייה נשלחה אל [מייל] בבוקר.");
+      expect(redactedText).not.toContain("Doctor@Clinic.ORG");
+    });
+
+    it("should mask manual 9-digit national IDs", () => {
+      const text = "תעודת זהות של הנבדק 987654321 סופקה.";
+      const { text: redactedText } = redact(text, []);
+
+      expect(redactedText).toBe("תעודת זהות של הנבדק [ת.ז] סופקה.");
+      expect(redactedText).not.toContain("987654321");
+    });
+  });
+
+  describe("restore & edge cases", () => {
+    it("should handle child and parent sharing the exact same last name without double substitution", () => {
+      const child = { firstName: "יונתן", lastName: "כהן" };
+      const parent = { firstName: "דוד", lastName: "כהן" };
+      const entityMap = buildEntityMap(child, parent);
+
+      const originalText = "יונתן כהן ואביו דוד כהן הגיעו יחד.";
       const { text: redactedText, replacements } = redact(
         originalText,
-        entityMap
+        entityMap,
       );
-      expect(redactedText).toBe("[שם_הנבחן] [שם_משפחה] הציג מוטיבציה גבוהה.");
 
-      // Simulate model rephrasing while keeping the tokens
+      // Verify redaction replaced both instances
+      expect(redactedText).not.toContain("כהן");
+
+      const restored = restore(redactedText, replacements);
+      expect(restored).toBe(originalText);
+    });
+
+    it("should restore both occurrences when the AI model duplicates a token", () => {
+      const replacements = [{ token: "[שם_הנבחן]", value: "דני" }];
       const modelOutput =
-        "במהלך המפגש, [שם_הנבחן] [שם_משפחה] הפגין רמת מוטיבציה ניכרת.";
-      const restored = restore(modelOutput, replacements);
+        "[שם_הנבחן] שיתף פעולה יפה. בסיום, [שם_הנבחן] קיבל מדבקה.";
 
-      expect(restored).toBe(
-        "במהלך המפגש, אורי כהן הפגין רמת מוטיבציה ניכרת."
-      );
+      const restored = restore(modelOutput, replacements);
+      expect(restored).toBe("דני שיתף פעולה יפה. בסיום, דני קיבל מדבקה.");
       expect(restored).not.toContain("[שם_הנבחן]");
-      expect(restored).not.toContain("[שם_משפחה]");
+    });
+
+    it("should not crash and not leave brackets when model omitted a token", () => {
+      const replacements = [
+        { token: "[שם_הנבחן]", value: "דני" },
+        { token: "[ת.ז]", value: "123456789" },
+      ];
+      // Model output only contains [שם_הנבחן], omitted [ת.ז]
+      const modelOutput = "[שם_הנבחן] השלים את המשימה.";
+
+      const restored = restore(modelOutput, replacements);
+      expect(restored).toBe("דני השלים את המשימה.");
+      expect(restored).not.toContain("[");
+      expect(restored).not.toContain("]");
+    });
+
+    it("should perform a lossless round-trip on a paragraph containing all entity types", () => {
+      const child = {
+        firstName: "איתי",
+        lastName: "ברקוביץ",
+        idNumber: "312456789",
+      };
+      const parent = {
+        firstName: "מיכל",
+        lastName: "ברקוביץ",
+        phone: "054-9876543",
+        email: "michal@berko.co.il",
+      };
+      const entityMap = buildEntityMap(child, parent);
+
+      const originalParagraph =
+        "איתי ברקוביץ ת.ז 312456789 הגיע בליווי אמו מיכל ברקוביץ. " +
+        "לאיתי מוטיבציה גבוהה, ומיכל דיווחה על שיפור. טלפון ליצירת קשר 054-9876543 ומייל michal@berko.co.il.";
+
+      const { text: redactedText, replacements } = redact(
+        originalParagraph,
+        entityMap,
+      );
+
+      // Verify all sensitive items were removed
+      expect(redactedText).not.toContain("איתי");
+      expect(redactedText).not.toContain("מיכל");
+      expect(redactedText).not.toContain("ברקוביץ");
+      expect(redactedText).not.toContain("312456789");
+      expect(redactedText).not.toContain("054-9876543");
+      expect(redactedText).not.toContain("michal@berko.co.il");
+
+      // Verify prefix letters remained
+      expect(redactedText).toContain("לאיתי".replace("איתי", "[שם_הנבחן]"));
+      expect(redactedText).toContain("ומיכל".replace("מיכל", "[שם_הורה]"));
+
+      // Lossless restore
+      const restored = restore(redactedText, replacements);
+      expect(restored).toBe(originalParagraph);
     });
   });
 });
