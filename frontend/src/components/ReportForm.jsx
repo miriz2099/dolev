@@ -862,29 +862,46 @@ const SectionRenderer = ({
 
 // ======================== Navigation Sidebar ========================
 
-const SectionNav = ({ sections, activeSection, onSelect }) => (
-  <div className="w-48 shrink-0 sticky top-4 self-start hidden lg:block">
-    <div className="bg-white rounded-xl shadow p-3 max-h-[80vh] overflow-y-auto">
-      <h4 className="text-sm font-bold text-gray-500 mb-2">ניווט מהיר</h4>
-      <ul className="flex flex-col gap-1">
-        {sections.map((s) => (
-          <li key={s.id}>
-            <button
-              onClick={() => onSelect(s.id)}
-              className={`w-full text-right text-sm px-2 py-1.5 rounded-lg transition ${
-                activeSection === s.id
-                  ? "bg-blue-100 text-blue-800 font-bold"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {s.title}
-            </button>
-          </li>
-        ))}
-      </ul>
+const SectionNav = ({ sections, activeSection, onSelect }) => {
+  const listRef = useRef(null);
+
+  // כש-activeSection משתנה (גלילה או לחיצה), לגלול את רשימת הניווט
+  // כך שהפריט הפעיל יישאר בתוך שדה הראייה שלה.
+  useEffect(() => {
+    const activeBtn = listRef.current?.querySelector(
+      `[data-section-id="${activeSection}"]`,
+    );
+    activeBtn?.scrollIntoView({ block: "nearest" });
+  }, [activeSection]);
+
+  return (
+    <div className="w-48 shrink-0 sticky top-0 self-start hidden xl:block">
+      <div
+        ref={listRef}
+        className="bg-white rounded-xl shadow p-3 max-h-[80vh] overflow-y-auto"
+      >
+        <h4 className="text-sm font-bold text-gray-500 mb-2">ניווט מהיר</h4>
+        <ul className="flex flex-col gap-1">
+          {sections.map((s) => (
+            <li key={s.id}>
+              <button
+                data-section-id={s.id}
+                onClick={() => onSelect(s.id)}
+                className={`w-full text-right text-sm px-2 py-1.5 rounded-lg transition ${
+                  activeSection === s.id
+                    ? "bg-blue-100 text-blue-800 font-bold"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {s.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ======================== Main Component ========================
 
@@ -899,6 +916,9 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
     REPORT_STRUCTURE[0]?.id || "",
   );
   const autoSaveTimer = useRef(null);
+  const formRootRef = useRef(null);
+  const suppressObserverRef = useRef(false);
+  const suppressTimerRef = useRef(null);
 
   // ---- ניסוח מחדש קבוצתי: בחירת בלוקים ----
   const [selectMode, setSelectMode] = useState(false);
@@ -982,6 +1002,43 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
     }, 30000);
     return () => clearInterval(autoSaveTimer.current);
   }, [formData, isCompleted, loading]);
+
+  // ---- עדכון הסעיף הפעיל תוך כדי גלילה חופשית (IntersectionObserver) ----
+  useEffect(() => {
+    if (loading) return;
+    const sectionEls = REPORT_STRUCTURE.map((s) =>
+      document.getElementById(`section-${s.id}`),
+    ).filter(Boolean);
+    if (sectionEls.length === 0) return;
+
+    // מוצאים את אלמנט הגלילה האמיתי (הכרטיס הלבן של Layout עם overflow-y-auto)
+    let scrollParent = formRootRef.current;
+    while (
+      scrollParent &&
+      getComputedStyle(scrollParent).overflowY !== "auto"
+    ) {
+      scrollParent = scrollParent.parentElement;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressObserverRef.current) return;
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length === 0) return;
+        const topMost = visible.reduce((a, b) =>
+          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b,
+        );
+        setActiveSection(topMost.target.id.replace("section-", ""));
+      },
+      {
+        root: scrollParent || null,
+        rootMargin: "-80px 0px -60% 0px",
+      },
+    );
+
+    sectionEls.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [loading]);
 
   // ---- עדכון שדה בטופס ----
   const updateSection = useCallback((sectionId, value) => {
@@ -1231,8 +1288,26 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
   // ---- גלילה למקטע ----
   const scrollToSection = (sectionId) => {
     setActiveSection(sectionId);
+    // גלילה שנגרמה מלחיצה (ולא מגלילה חופשית) - להתעלם מעדכוני ה-
+    // IntersectionObserver לזמן קצר, כדי שהסימון לא "יקפוץ" תוך כדי.
+    suppressObserverRef.current = true;
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = setTimeout(() => {
+      suppressObserverRef.current = false;
+    }, 600);
     const el = document.getElementById(`section-${sectionId}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const goToPrevSection = () => {
+    const idx = REPORT_STRUCTURE.findIndex((s) => s.id === activeSection);
+    if (idx > 0) scrollToSection(REPORT_STRUCTURE[idx - 1].id);
+  };
+  const goToNextSection = () => {
+    const idx = REPORT_STRUCTURE.findIndex((s) => s.id === activeSection);
+    if (idx !== -1 && idx < REPORT_STRUCTURE.length - 1) {
+      scrollToSection(REPORT_STRUCTURE[idx + 1].id);
+    }
   };
 
   if (loading) {
@@ -1270,7 +1345,7 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
   ].filter(Boolean);
 
   return (
-    <div className="flex gap-6" dir="rtl">
+    <div className="flex gap-6" dir="rtl" ref={formRootRef}>
       {/* ניווט צדדי */}
       <SectionNav
         sections={REPORT_STRUCTURE}
@@ -1279,83 +1354,56 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
       />
 
       {/* גוף הטופס */}
-      <div className="flex-1 max-w-4xl">
-        {/* 🆕 סרגל הקשר דביק - על איזה מטופל/אבחון מדובר, איפה נמצאים בטופס,
-            ופעולות השמירה/הגשה - נשאר גלוי תוך גלילה בטופס הארוך */}
-        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-xl shadow p-4 mb-6 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            {contextLineParts.length > 0 && (
-              <p className="font-bold text-blue-900">
-                {contextLineParts.join(" · ")}
-              </p>
-            )}
-            <p className="text-xs text-gray-400 mt-0.5">
-              סעיף {activeSectionIndex + 1} מתוך {REPORT_STRUCTURE.length}
-              {REPORT_STRUCTURE[activeSectionIndex]?.title
-                ? `: ${REPORT_STRUCTURE[activeSectionIndex].title}`
-                : ""}
-              {" · "}
-              {filledSectionsCount}/{REPORT_STRUCTURE.length} סעיפים מולאו
-            </p>
-          </div>
-
-          {!isCompleted && (
-            <div className="flex items-center gap-2">
-              {lastSaved && (
-                <span className="text-xs text-gray-400">
-                  נשמר: {lastSaved.toLocaleTimeString("he-IL")}
-                </span>
-              )}
-              {onClose && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-500 text-sm hover:bg-gray-50 transition"
-                >
-                  חזרה
-                </button>
-              )}
+      <div className="flex-1 min-w-0 max-w-4xl">
+        {/* 🆕 סרגל הקשר - שורה אחת: שם הילד/אבחון, התקדמות בטופס, תגית
+            סטטוס ופעולות השמירה/הגשה. דביק רק כשהדוח עדיין בעריכה; כשהוא
+            הוגש/נסגר הוא לא דביק ומופיע רק בראש הטופס. ברוחב עמודת הטופס
+            בלבד (כמו הכרטיסים שמתחתיו), לא פורץ לכל רוחב החלונית. */}
+        <div
+          className={
+            isCompleted
+              ? "bg-white rounded-b-xl border border-gray-200 border-t-0 shadow-sm px-4 py-2 mb-4"
+              : "sticky -top-6 md:-top-12 z-20 bg-white rounded-b-xl border border-gray-200 border-t-0 shadow-sm px-4 py-2 mb-4"
+          }
+        >
+          <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
+            <div className="shrink-0 flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => handleSaveDraft(false)}
-                disabled={saving}
-                className="px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-bold hover:bg-yellow-600 transition disabled:opacity-50"
+                onClick={goToPrevSection}
+                disabled={activeSectionIndex <= 0}
+                className="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-40 disabled:hover:bg-transparent"
               >
-                {saving ? "שומר..." : "💾 שמור טיוטה"}
+                → הקודם
               </button>
               <button
                 type="button"
-                onClick={handleSubmit}
-                disabled={saving || checkingPlausibility}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                onClick={goToNextSection}
+                disabled={activeSectionIndex >= REPORT_STRUCTURE.length - 1}
+                className="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-40 disabled:hover:bg-transparent"
               >
-                {checkingPlausibility ? "בודקת תוכן..." : "הגש דוח סופי"}
+                הבא ←
               </button>
             </div>
-          )}
-        </div>
-
-        {/* כותרת + סטטוס */}
-        <div className="bg-white rounded-xl shadow p-6 mb-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-blue-900">
-                חוות דעת פסיכולוגית
-              </h2>
-              {childData && (
-                <p className="text-gray-500 mt-1">
-                  {childData.firstName} {childData.lastName}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              {lastSaved && !isCompleted && (
-                <span className="text-xs text-gray-400">
-                  נשמר: {lastSaved.toLocaleTimeString("he-IL")}
+            <div className="min-w-0 flex-1 flex items-baseline gap-3 overflow-hidden">
+              {contextLineParts.length > 0 && (
+                <span className="min-w-0 text-sm font-bold text-blue-900 truncate">
+                  {contextLineParts.join(" · ")}
                 </span>
               )}
+              <span className="shrink-0 whitespace-nowrap text-xs text-gray-400">
+                {activeSectionIndex + 1}/{REPORT_STRUCTURE.length}
+              </span>
+              {REPORT_STRUCTURE[activeSectionIndex]?.title && (
+                <span className="hidden 2xl:inline min-w-0 truncate max-w-[12rem] text-xs text-gray-400">
+                  · {REPORT_STRUCTURE[activeSectionIndex].title}
+                </span>
+              )}
+              <span className="hidden 2xl:inline shrink-0 text-xs text-gray-400 whitespace-nowrap">
+                {filledSectionsCount}/{REPORT_STRUCTURE.length} מולאו
+              </span>
               <span
-                className={`text-xs px-3 py-1 rounded-full font-bold ${
+                className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${
                   isCompleted
                     ? "bg-green-100 text-green-700"
                     : isNew
@@ -1366,6 +1414,59 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
                 {isCompleted ? "הושלם" : isNew ? "חדש" : "טיוטה"}
               </span>
             </div>
+
+            {!isCompleted && (
+              <div className="shrink-0 flex items-center gap-2">
+                {lastSaved && (
+                  <span className="hidden xl:inline text-xs text-gray-400 whitespace-nowrap">
+                    נשמר{" "}
+                    {lastSaved.toLocaleTimeString("he-IL", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                )}
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition"
+                  >
+                    חזרה
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSaveDraft(false)}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-yellow-500 text-white font-bold hover:bg-yellow-600 transition disabled:opacity-50"
+                >
+                  {saving ? "שומר..." : "💾 שמור טיוטה"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={saving || checkingPlausibility}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {checkingPlausibility ? "בודקת תוכן..." : "הגש דוח סופי"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* כותרת */}
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-blue-900">
+              חוות דעת פסיכולוגית
+            </h2>
+            {childData && (
+              <p className="text-gray-500 mt-1">
+                {childData.firstName} {childData.lastName}
+              </p>
+            )}
           </div>
 
           {/* הודעת מצב קריאה בלבד - מוצגת מעל הטופס כדי שלא תוחמץ */}
@@ -1423,11 +1524,11 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
         )}
 
         {/* מקטעי הטופס */}
-        {REPORT_STRUCTURE.map((section) => (
+        {REPORT_STRUCTURE.map((section, sectionIdx) => (
           <div
             key={section.id}
             id={`section-${section.id}`}
-            className="bg-white rounded-xl shadow p-6 mb-4"
+            className="bg-white rounded-xl shadow p-6 mb-4 scroll-mt-16 md:scroll-mt-12"
           >
             <SectionTitle>{section.title}</SectionTitle>
             <SectionRenderer
@@ -1443,6 +1544,19 @@ const ReportForm = ({ diagnosisId, childData, diagnosisLabel, onClose }) => {
               onAcknowledgeWarning={acknowledgePlausibilityWarning}
               onChange={(val) => updateSection(section.id, val)}
             />
+            {sectionIdx < REPORT_STRUCTURE.length - 1 && (
+              <div className="mt-4 text-left">
+                <button
+                  type="button"
+                  onClick={() =>
+                    scrollToSection(REPORT_STRUCTURE[sectionIdx + 1].id)
+                  }
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  לסעיף הבא: {REPORT_STRUCTURE[sectionIdx + 1].title} ←
+                </button>
+              </div>
+            )}
           </div>
         ))}
 
